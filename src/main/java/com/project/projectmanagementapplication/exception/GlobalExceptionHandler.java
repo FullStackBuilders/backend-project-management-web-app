@@ -1,5 +1,7 @@
 package com.project.projectmanagementapplication.exception;
 
+import com.project.projectmanagementapplication.dto.InvitationConflictDetails;
+import com.project.projectmanagementapplication.dto.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -69,6 +71,30 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(errorResponse.getStatus()).body(errorResponse);
+    }
+
+    @ExceptionHandler(InvitationAlreadySentException.class)
+    public ResponseEntity<ErrorResponse> handleInvitationAlreadySent(InvitationAlreadySentException ex, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+
+        // Create additional details for this specific conflict
+        InvitationConflictDetails details = InvitationConflictDetails.builder()
+                .email(ex.getEmail())
+                .projectId(ex.getProjectId())
+                .canResend(true)
+                .build();
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .statusCode(HttpStatus.CONFLICT.value())
+                .status(HttpStatus.CONFLICT)
+                .error("Invitation Already Sent")
+                .message(ex.getMessage())
+                .path(path)
+                .timestamp(LocalDateTime.now().toString())
+                .details(details)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)

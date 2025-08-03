@@ -107,21 +107,21 @@ public class ProjectController {
     }
 
 
-    @PostMapping("/invite")
-    public ResponseEntity<Response<Void>> inviteUserToProject(@RequestBody EmailInviteRequest emailInviteRequest) throws Exception {
-
-    Response<Void> response  = invitationService.sendInvitation(emailInviteRequest.getEmail(), emailInviteRequest.getProjectId());
-    return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/accept-invitation")
-    public ResponseEntity<Response<Invitation>> acceptInvitation(@RequestParam String token) throws Exception {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        User user = userService.findByUsername(username);
-        Response<Invitation> response =  invitationService.acceptInvitation(token, user.getId());
-        projectService.addUserToProject(response.getData().getProjectId(), user.getId());
-        return ResponseEntity.status(response.getStatus()).body(response);
-    }
+//    @PostMapping("/invite")
+//    public ResponseEntity<Response<Void>> inviteUserToProject(@RequestBody EmailInviteRequest emailInviteRequest) throws Exception {
+//
+//    Response<Void> response  = invitationService.sendInvitation(emailInviteRequest.getEmail(), emailInviteRequest.getProjectId());
+//    return ResponseEntity.ok(response);
+//    }
+//
+//    @GetMapping("/accept-invitation")
+//    public ResponseEntity<Response<Invitation>> acceptInvitation(@RequestParam String token) throws Exception {
+//
+//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//        String username = authentication.getName();
+//        User user = userService.findByUsername(username);
+//        Response<Invitation> response =  invitationService.acceptInvitation(token, user.getId());
+//        projectService.addUserToProject(response.getData().getProjectId(), user.getId());
+//        return ResponseEntity.status(response.getStatus()).body(response);
+//    }
 }

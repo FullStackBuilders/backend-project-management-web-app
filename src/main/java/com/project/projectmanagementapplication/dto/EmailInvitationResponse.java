@@ -9,8 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class EmailInviteRequest {
+public class EmailInvitationResponse {
+    private Long invitationId;
+    private boolean isResend;
     private String email;
-    private Long projectId;
-    private boolean forceResend = false;
+    private boolean canResend;
 }
