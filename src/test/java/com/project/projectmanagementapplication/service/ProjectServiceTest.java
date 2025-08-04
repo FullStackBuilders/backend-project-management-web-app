@@ -13,8 +13,12 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.context.ActiveProfiles;
 
+@SpringBootTest
+@ActiveProfiles("test")
 public class ProjectServiceTest {
 
 
