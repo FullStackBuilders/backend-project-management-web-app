@@ -17,12 +17,9 @@ public interface InvitationService {
 
     void deleteToken(String token) throws Exception;
 
-    // Updated method signature for better invitation handling
     Response<InvitationAcceptanceResponse> processInvitationAcceptance(String token, String userEmail) throws Exception;
 
-    // New method to get invitation details without authentication
     Response<ProjectDetailsResponse> getInvitationDetails(String token) throws Exception;
 
-    // MISSING METHOD - Add this to your interface
     Response<Void> acceptInvitationAfterRegistration(String userEmail) throws Exception;
 }

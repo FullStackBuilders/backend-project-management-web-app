@@ -179,8 +179,6 @@ public class InvitationServiceImpl implements InvitationService {
         invitationRepository.delete(invitation);
     }
 
-    // Add these methods to your existing InvitationServiceImpl class
-
     @Override
     public Response<ProjectDetailsResponse> getInvitationDetails(String token) throws Exception {
         Invitation invitation = invitationRepository.findByToken(token);
@@ -273,9 +271,6 @@ public class InvitationServiceImpl implements InvitationService {
             userExists = false;
             isNewUser = true;
 
-            // For non-existing users, we DON'T change status to ACCEPTED yet
-            // Keep it PENDING until they register
-            // But we can mark that it's been "processed" by updating updatedAt
             invitation.setUpdatedAt(LocalDateTime.now());
             invitationRepository.save(invitation);
         }
@@ -286,7 +281,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .projectId(project.getId())
                 .userEmail(userEmail)
                 .userExists(userExists)
-                .isNewUser(isNewUser)  // Make sure this matches your DTO field name
+                .isNewUser(isNewUser)
                 .redirectUrl("/dashboard")
                 .build();
 

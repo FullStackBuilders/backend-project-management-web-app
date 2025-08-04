@@ -23,8 +23,6 @@ public class AuthServiceImpl implements AuthService {
 
     private final PasswordEncoder passwordEncoder;
 
-    private final CustomUserDetailsImpl customUserDetailsService;
-
     private final JwtUtil jwtUtil;
 
     private final SubscriptionService subscriptionService;
@@ -32,10 +30,9 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
 
     @Autowired
-    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, CustomUserDetailsImpl customUserDetailsService, JwtUtil jwtUtil, SubscriptionService subscriptionService, AuthenticationManager authenticationManager) {
+    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SubscriptionService subscriptionService, AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.customUserDetailsService = customUserDetailsService;
         this.jwtUtil = jwtUtil;
         this.subscriptionService = subscriptionService;
         this.authenticationManager = authenticationManager;
