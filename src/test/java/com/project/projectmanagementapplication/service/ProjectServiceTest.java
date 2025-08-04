@@ -15,9 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.ActiveProfiles;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectServiceTest {
@@ -32,7 +30,7 @@ public class ProjectServiceTest {
     private UserService userService;
 
     @Mock
-    private ChatService chatService; 
+    private ChatService chatService;
 
     @Test
     void testGetProjectById_Success() {
