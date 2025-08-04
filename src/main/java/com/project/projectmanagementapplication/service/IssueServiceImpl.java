@@ -24,7 +24,6 @@ import java.util.Optional;
 @Service
 public class IssueServiceImpl implements IssueService {
 
-
     private final IssueRepository issueRepository;
     private final ProjectService projectService;
     private final UserService userService;
@@ -47,11 +46,16 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public Response<List<IssueResponse>> getIssueByProjectId(Long projectId) throws Exception {
-        List<Issue> issues = issueRepository.findByProjectId(projectId);
-        if (issues.isEmpty()) {
-            throw new ResourceNotFoundException("No issues found for project with Id: " + projectId);
+        // First verify project exists
+        try {
+            projectService.getProjectById(projectId);
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Project not found with Id: " + projectId);
         }
+        Response<Project> existingProject = projectService.getProjectById(projectId);
+        List<Issue> issues = issueRepository.findByProjectId(projectId);
 
+        // Handle empty issues list - this is valid, not an error
         List<IssueResponse> issueResponses = issues.stream().map(issue -> IssueResponse.builder()
                 .id(issue.getId())
                 .title(issue.getTitle())
@@ -67,18 +71,21 @@ public class IssueServiceImpl implements IssueService {
                 .comments(issue.getComments())
                 .build()).toList();
 
+        String message = issues.isEmpty() ?
+                "No issues found for this project" :
+                "Issues retrieved successfully";
+
         return Response.<List<IssueResponse>>builder()
                 .data(issueResponses)
-                .message("Issues retrieved successfully")
+                .message(message)
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())
                 .build();
     }
 
-
     @Override
-    public Response<IssueResponse> createIssue(Long projectId,IssueRequest issueRequest, User user)  {
+    public Response<IssueResponse> createIssue(Long projectId, IssueRequest issueRequest, User user) {
         try {
             Project project = projectService.getProjectById(projectId).getData();
             Issue issue = new Issue();
@@ -90,7 +97,6 @@ public class IssueServiceImpl implements IssueService {
             }
             else if(issueRequest.getPriority().equals(ISSUE_PRIORITY.MEDIUM.toString())) {
                 issue.setPriority(ISSUE_PRIORITY.MEDIUM);
-
             } else {
                 issue.setPriority(ISSUE_PRIORITY.LOW);
             }
@@ -143,8 +149,6 @@ public class IssueServiceImpl implements IssueService {
                 .timestamp(LocalDateTime.now().toString())
                 .build();
     }
-
-
 
     @Override
     public Response<IssueResponse> updateIssue(Long issueId, IssueRequest issueRequest, Long userId) throws Exception {
@@ -223,10 +227,14 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
-        if (issue.getAssignee() != null && !issue.getAssignee().getId().equals(userId)) {
-            throw new Exception("You are not authorized to update this issue"); //only the assignee can update the issue status
+
+        // Check authorization - only assignee can update status
+        if (issue.getAssignee() == null || !issue.getAssignee().getId().equals(userId)) {
+            throw new UnauthorizedException("Only the assignee can update the issue status");
         }
-        else if(status.equals(ISSUE_STATUS.TO_DO.toString())){
+
+        // Validate and set status
+        if(status.equals(ISSUE_STATUS.TO_DO.toString())){
             issue.setStatus(ISSUE_STATUS.TO_DO);
         }
         else if(status.equals(ISSUE_STATUS.IN_PROGRESS.toString())){
@@ -239,7 +247,7 @@ public class IssueServiceImpl implements IssueService {
             throw new BadRequestException("Invalid status: " + status);
         }
 
-        Issue updatedIssue =  issueRepository.save(issue);
+        Issue updatedIssue = issueRepository.save(issue);
         return Response.<IssueResponse>builder()
                 .data(IssueResponse.builder()
                         .id(updatedIssue.getId())
@@ -260,6 +268,4 @@ public class IssueServiceImpl implements IssueService {
                 .timestamp(LocalDateTime.now().toString())
                 .build();
     }
-
-
 }
