@@ -6,6 +6,7 @@ import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 
 import java.util.Optional;
@@ -13,14 +14,13 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@ExtendWith(MockitoExtension.class)
 public class ProjectServiceTest {
-
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -28,17 +28,17 @@ public class ProjectServiceTest {
     @Mock
     private ProjectRepository projectRepository;
 
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
+    @Mock
+    private UserService userService;
+
+    @Mock
+    private ChatService chatService; 
 
     @Test
     void testGetProjectById_Success() {
         // Arrange
         Long projectId = 1L;
         Project mockProject = MockProjectFactory.createMockProject(projectId);
-
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(mockProject));
 
         // Act
