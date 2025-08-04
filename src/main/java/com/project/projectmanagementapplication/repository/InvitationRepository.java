@@ -27,4 +27,5 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
     // Find all invitations by a specific user
     List<Invitation> findByInvitedByOrderByCreatedAtDesc(Long invitedBy);
+
 }

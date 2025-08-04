@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -40,7 +41,11 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
       http.sessionManagement(httpSecuritySessionManagementConfigurer -> httpSecuritySessionManagementConfigurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-              .authorizeHttpRequests(authorize->authorize.requestMatchers("/api/**").authenticated()
+              .authorizeHttpRequests(authorize->authorize
+                              // PUBLIC INVITATION ENDPOINTS - Add these specific paths
+                      .requestMatchers(HttpMethod.GET, "/api/invitations/details/**").permitAll()
+                      .requestMatchers(HttpMethod.POST, "/api/invitations/accept/**").permitAll()
+                      .requestMatchers("/api/**").authenticated()
               .anyRequest().permitAll())
               .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
               .csrf(csrf -> csrf.disable())

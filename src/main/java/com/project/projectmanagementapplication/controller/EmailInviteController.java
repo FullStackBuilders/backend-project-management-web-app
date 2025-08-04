@@ -1,12 +1,10 @@
 package com.project.projectmanagementapplication.controller;
 
-import com.project.projectmanagementapplication.dto.EmailInvitationResponse;
-import com.project.projectmanagementapplication.dto.EmailInviteRequest;
-import com.project.projectmanagementapplication.dto.ProjectDetailsResponse;
-import com.project.projectmanagementapplication.dto.Response;
+import com.project.projectmanagementapplication.dto.*;
 import com.project.projectmanagementapplication.model.Invitation;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
+import com.project.projectmanagementapplication.security.JwtUtil;
 import com.project.projectmanagementapplication.service.InvitationService;
 import com.project.projectmanagementapplication.service.ProjectService;
 import com.project.projectmanagementapplication.service.UserService;
@@ -28,12 +26,14 @@ public class EmailInviteController {
     private final InvitationService invitationService;
     private final ProjectService projectService;
     private final UserService userService;
+    private final JwtUtil jwtUtil;
 
     @Autowired
-    public EmailInviteController(InvitationService invitationService, ProjectService projectService, UserService userService) {
+    public EmailInviteController(InvitationService invitationService, ProjectService projectService, UserService userService, JwtUtil jwtUtil) {
         this.invitationService = invitationService;
         this.projectService = projectService;
         this.userService = userService;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping("/send")
@@ -88,39 +88,59 @@ public class EmailInviteController {
         }
     }
 
-    @GetMapping("/details")
-    public ResponseEntity<Response<ProjectDetailsResponse>> getInvitationDetails(@RequestParam String token) {
+    // NEW PUBLIC ENDPOINTS (no authentication required)
+    @GetMapping("/details/{token}")
+    public ResponseEntity<Response<ProjectDetailsResponse>> getInvitationDetails(
+            @PathVariable String token) {
         try {
-            Response<Invitation> response = invitationService.acceptInvitation(token, null);
-            Invitation invitation = response.getData();
-
-            // Get project details for the invitation
-            Response<Project> projectResponse = projectService.getProjectById(invitation.getProjectId());
-            Project project = projectResponse.getData();
-
-            ProjectDetailsResponse details = ProjectDetailsResponse.builder()
-                    .projectName(project.getName())
-                    .projectDescription(project.getDescription())
-                    .projectCategory(project.getCategory())
-                    .ownerName(project.getOwner().getFirstName())
-                    .teamSize(project.getTeam().size())
-                    .token(token)
-                    .build();
-
-            return ResponseEntity.ok(Response.<ProjectDetailsResponse>builder()
-                    .message("Invitation details retrieved successfully")
-                    .status(HttpStatus.OK)
-                    .statusCode(HttpStatus.OK.value())
-                    .timestamp(LocalDateTime.now().toString())
-                    .data(details)
-                    .build());
-
+            Response<ProjectDetailsResponse> response = invitationService.getInvitationDetails(token);
+            return new ResponseEntity<>(response, response.getStatus());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Response.<ProjectDetailsResponse>builder()
-                            .message("Invitation not found or expired")
-                            .status(HttpStatus.NOT_FOUND)
-                            .statusCode(HttpStatus.NOT_FOUND.value())
+                            .message("Error retrieving invitation: " + e.getMessage())
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
+                            .timestamp(LocalDateTime.now().toString())
+                            .build());
+        }
+    }
+
+    @PostMapping("/accept/{token}")
+    public ResponseEntity<Response<InvitationAcceptanceResponse>> acceptInvitationPublic(
+            @PathVariable String token,
+            @RequestBody InvitationAcceptRequest request) {
+        try {
+            Response<InvitationAcceptanceResponse> response =
+                    invitationService.processInvitationAcceptance(token, request.getUserEmail());
+            return new ResponseEntity<>(response, response.getStatus());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Response.<InvitationAcceptanceResponse>builder()
+                            .message("Error accepting invitation: " + e.getMessage())
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
+                            .timestamp(LocalDateTime.now().toString())
+                            .build());
+        }
+    }
+
+    // Endpoint to be called after user registration/login
+    @PostMapping("/process-pending")
+    public ResponseEntity<Response<Void>> processPendingInvitations() {
+        try {
+            // Get current authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String username = authentication.getName();
+
+            Response<Void> response = invitationService.acceptInvitationAfterRegistration(username);
+            return new ResponseEntity<>(response, response.getStatus());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Response.<Void>builder()
+                            .message("Error processing pending invitations: " + e.getMessage())
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
                             .timestamp(LocalDateTime.now().toString())
                             .build());
         }

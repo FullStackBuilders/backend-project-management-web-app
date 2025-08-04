@@ -1,11 +1,11 @@
 package com.project.projectmanagementapplication.service;
 
 import com.project.projectmanagementapplication.dto.EmailInvitationResponse;
+import com.project.projectmanagementapplication.dto.InvitationAcceptanceResponse;
+import com.project.projectmanagementapplication.dto.ProjectDetailsResponse;
 import com.project.projectmanagementapplication.dto.Response;
 import com.project.projectmanagementapplication.enums.INVITATION_STATUS;
-import com.project.projectmanagementapplication.exception.ConflictException;
-import com.project.projectmanagementapplication.exception.InvitationAlreadySentException;
-import com.project.projectmanagementapplication.exception.UnauthorizedException;
+import com.project.projectmanagementapplication.exception.*;
 import com.project.projectmanagementapplication.model.Invitation;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -176,5 +177,162 @@ public class InvitationServiceImpl implements InvitationService {
             throw new Exception("Invitation not found for token: " + token);
         }
         invitationRepository.delete(invitation);
+    }
+
+    // Add these methods to your existing InvitationServiceImpl class
+
+    @Override
+    public Response<ProjectDetailsResponse> getInvitationDetails(String token) throws Exception {
+        Invitation invitation = invitationRepository.findByToken(token);
+
+        if (invitation == null) {
+            throw new ResourceNotFoundException("Invitation not found for token: " + token);
+        }
+
+        if (invitation.isExpired()) {
+            invitation.setStatus(INVITATION_STATUS.EXPIRED);
+            invitationRepository.save(invitation);
+            throw new InvitationExpiredException("Invitation has expired");
+        }
+
+        if (invitation.getStatus() != INVITATION_STATUS.PENDING) {
+            throw new ConflictException("Invitation has already been " + invitation.getStatus().toString().toLowerCase());
+        }
+
+        Response<Project> projectResponse = projectService.getProjectById(invitation.getProjectId());
+        Project project = projectResponse.getData();
+
+        ProjectDetailsResponse projectDetails = ProjectDetailsResponse.builder()
+                .projectName(project.getName())
+                .projectDescription(project.getDescription())
+                .projectCategory(project.getCategory())
+                .ownerName(project.getOwner().getFirstName())
+                .teamSize(project.getTeam().size())
+                .token(token)
+                .build();
+
+        return Response.<ProjectDetailsResponse>builder()
+                .data(projectDetails)
+                .message("Invitation details retrieved successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
+    public Response<InvitationAcceptanceResponse> processInvitationAcceptance(String token, String userEmail) throws Exception {
+        Invitation invitation = invitationRepository.findByToken(token);
+
+        if (invitation == null) {
+            throw new ResourceNotFoundException("Invitation not found for token: " + token);
+        }
+
+        if (invitation.isExpired()) {
+            invitation.setStatus(INVITATION_STATUS.EXPIRED);
+            invitationRepository.save(invitation);
+            throw new InvitationExpiredException("Invitation has expired");
+        }
+
+        if (invitation.getStatus() != INVITATION_STATUS.PENDING) {
+            throw new ConflictException("Invitation has already been " + invitation.getStatus().toString().toLowerCase());
+        }
+
+        // Verify email matches invitation
+        if (!invitation.getEmail().equalsIgnoreCase(userEmail)) {
+            throw new UnauthorizedException("Email does not match invitation recipient");
+        }
+
+        // Get project details
+        Response<Project> projectResponse = projectService.getProjectById(invitation.getProjectId());
+        Project project = projectResponse.getData();
+
+        // Check if user exists in system
+        User user = null;
+        boolean userExists = false;
+        boolean isNewUser = false;
+
+        try {
+            user = userService.findByUsername(userEmail);
+            userExists = true;
+
+            // Check if user is already in project
+            if (project.getTeam().contains(user)) {
+                throw new ConflictException("User is already a member of this project");
+            }
+
+            // If user exists, add them to project immediately
+            projectService.addUserToProject(user.getId(), invitation.getProjectId());
+
+            // Mark invitation as accepted - THIS WAS MISSING SAVE!
+            invitation.setStatus(INVITATION_STATUS.ACCEPTED);
+            invitationRepository.save(invitation);
+
+        } catch (ResourceNotFoundException e) {
+            // User doesn't exist in system
+            userExists = false;
+            isNewUser = true;
+
+            // For non-existing users, we DON'T change status to ACCEPTED yet
+            // Keep it PENDING until they register
+            // But we can mark that it's been "processed" by updating updatedAt
+            invitation.setUpdatedAt(LocalDateTime.now());
+            invitationRepository.save(invitation);
+        }
+
+        InvitationAcceptanceResponse response = InvitationAcceptanceResponse.builder()
+                .message("Invitation processed successfully")
+                .projectName(project.getName())
+                .projectId(project.getId())
+                .userEmail(userEmail)
+                .userExists(userExists)
+                .isNewUser(isNewUser)  // Make sure this matches your DTO field name
+                .redirectUrl("/dashboard")
+                .build();
+
+        return Response.<InvitationAcceptanceResponse>builder()
+                .data(response)
+                .message("Invitation acceptance processed successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
+    public Response<Void> acceptInvitationAfterRegistration(String userEmail) throws Exception {
+        // Find pending invitation for this email
+        List<Invitation> pendingInvitations = invitationRepository
+                .findByEmailAndStatus(userEmail, INVITATION_STATUS.PENDING);
+
+        if (pendingInvitations.isEmpty()) {
+            return Response.<Void>builder()
+                    .message("No pending invitations found")
+                    .status(HttpStatus.OK)
+                    .statusCode(HttpStatus.OK.value())
+                    .timestamp(LocalDateTime.now().toString())
+                    .build();
+        }
+
+        User user = userService.findByUsername(userEmail);
+
+        // Process all pending invitations for this user
+        for (Invitation invitation : pendingInvitations) {
+            if (!invitation.isExpired()) {
+                projectService.addUserToProject(user.getId(), invitation.getProjectId());
+                invitation.setStatus(INVITATION_STATUS.ACCEPTED);
+                invitationRepository.save(invitation);
+            } else {
+                invitation.setStatus(INVITATION_STATUS.EXPIRED);
+                invitationRepository.save(invitation);
+            }
+        }
+
+        return Response.<Void>builder()
+                .message("Pending invitations processed successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
     }
 }
