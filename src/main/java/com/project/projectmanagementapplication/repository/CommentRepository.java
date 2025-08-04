@@ -8,4 +8,6 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
  List<Comment> findByIssueId(Long issueId);
+
+    List<Comment> findByIssueIdOrderByCreatedDateTimeAsc(Long issueId);
 }

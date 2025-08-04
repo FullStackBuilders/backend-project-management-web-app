@@ -1,6 +1,7 @@
 package com.project.projectmanagementapplication.controller;
 
 import com.project.projectmanagementapplication.dto.CommentRequest;
+import com.project.projectmanagementapplication.dto.CommentResponse;
 import com.project.projectmanagementapplication.dto.Response;
 import com.project.projectmanagementapplication.model.Comment;
 import com.project.projectmanagementapplication.model.User;
@@ -29,6 +30,25 @@ public class CommentController {
         this.userService = userService;
     }
 
+    @GetMapping("/issue/{issueId}")
+    public ResponseEntity<Response<List<CommentResponse>>> getCommentsByIssueId(@PathVariable Long issueId) throws Exception {
+        Response<List<CommentResponse>> response = commentService.getCommentsByIssueId(issueId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/issue/{issueId}")
+    public ResponseEntity<Response<CommentResponse>> addComment(
+            @PathVariable Long issueId,
+            @RequestBody CommentRequest commentRequest) throws Exception {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
+
+        Response<CommentResponse> response = commentService.addComment(issueId, commentRequest, user);
+        return ResponseEntity.status(response.getStatus()).body(response);
+    }
+
     @PostMapping("/{issueId}")
     public ResponseEntity<Response<Comment>> createComment(@PathVariable Long issueId, @RequestBody CommentRequest commentRequest) throws Exception {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -47,12 +67,6 @@ public class CommentController {
         Response<Void> response = commentService.deleteComment(commentId, user.getId());
         return ResponseEntity.status(response.getStatus()).body(response);
 
-    }
-
-    @GetMapping("/{issueId}")
-    public ResponseEntity<Response<List<Comment>>> getCommentsByIssueId(@PathVariable Long issueId) throws Exception {
-        Response<List<Comment>> response = commentService.getCommentsByIssueId(issueId);
-        return ResponseEntity.status(response.getStatus()).body(response);
     }
 
 

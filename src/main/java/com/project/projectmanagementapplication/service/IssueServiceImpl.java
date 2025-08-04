@@ -1,5 +1,6 @@
 package com.project.projectmanagementapplication.service;
 
+import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
 import com.project.projectmanagementapplication.dto.Response;
@@ -46,13 +47,14 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public Response<List<IssueResponse>> getIssueByProjectId(Long projectId) throws Exception {
-        // First verify project exists
+        // First verify project exists and get project details
+        Project project;
         try {
-            projectService.getProjectById(projectId);
+            project = projectService.getProjectById(projectId).getData();
         } catch (Exception e) {
             throw new ResourceNotFoundException("Project not found with Id: " + projectId);
         }
-        Response<Project> existingProject = projectService.getProjectById(projectId);
+
         List<Issue> issues = issueRepository.findByProjectId(projectId);
 
         // Handle empty issues list - this is valid, not an error
@@ -67,6 +69,7 @@ public class IssueServiceImpl implements IssueService {
                 .createdById(issue.getCreatedBy().getId())
                 .assignee(issue.getAssignee())
                 .projectId(issue.getProject() != null ? issue.getProject().getId() : null)
+                .projectOwnerId(project.getOwner().getId()) // Add project owner ID
                 .project(null)
                 .comments(issue.getComments())
                 .build()).toList();
@@ -118,6 +121,7 @@ public class IssueServiceImpl implements IssueService {
                             .createdById(createdIssue.getCreatedBy().getId())
                             .assignee(createdIssue.getAssignee())
                             .projectId(createdIssue.getProject().getId())
+                            .projectOwnerId(project.getOwner().getId())
                             .comments(createdIssue.getComments())
                             .build())
                     .message("Issue created successfully")
@@ -158,6 +162,9 @@ public class IssueServiceImpl implements IssueService {
             throw new UnauthorizedException("You are not authorized to update this issue");
         }
 
+        // Get project for projectOwnerId
+        Project project = issue.getProject();
+
         issue.setTitle(issueRequest.getTitle());
         issue.setDescription(issueRequest.getDescription());
 
@@ -185,6 +192,7 @@ public class IssueServiceImpl implements IssueService {
                 .createdById(issue.getCreatedBy().getId())
                 .assignee(updatedIssue.getAssignee())
                 .projectId(updatedIssue.getProject() != null ? updatedIssue.getProject().getId() : null)
+                .projectOwnerId(project.getOwner().getId())
                 .createdById(updatedIssue.getCreatedBy().getId())
                 .comments(updatedIssue.getComments())
                 .build();
@@ -198,10 +206,57 @@ public class IssueServiceImpl implements IssueService {
                 .build();
     }
 
+
+    @Override
+    public Response<IssueDetailResponse> getIssueDetail(Long issueId) throws Exception {
+        Issue issue = getIssueById(issueId);
+        Project project = issue.getProject();
+
+        IssueDetailResponse detailResponse = IssueDetailResponse.builder()
+                .id(issue.getId())
+                .title(issue.getTitle())
+                .description(issue.getDescription())
+                .status(issue.getStatus().toString())
+                .priority(issue.getPriority().toString())
+                .assignedDate(issue.getAssignedDate())
+                .dueDate(issue.getDueDate())
+
+                // Issue creator details
+                .createdById(issue.getCreatedBy().getId())
+                .createdByName(issue.getCreatedBy().getFirstName() + " " + issue.getCreatedBy().getLastName())
+
+                // Assignee details (if assigned)
+                .assigneeId(issue.getAssignee() != null ? issue.getAssignee().getId() : null)
+                .assigneeName(issue.getAssignee() != null ?
+                        issue.getAssignee().getFirstName() + " " + issue.getAssignee().getLastName() : null)
+
+                // Project details
+                .projectId(project.getId())
+                .projectName(project.getName())
+                .projectOwnerId(project.getOwner().getId())
+                .projectOwnerName(project.getOwner().getFirstName() + " " + project.getOwner().getLastName())
+
+                // Comments
+                .comments(issue.getComments())
+                .build();
+
+        return Response.<IssueDetailResponse>builder()
+                .data(detailResponse)
+                .message("Issue details retrieved successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
     @Override
     public Response<IssueResponse> addUserToIssue(Long issueId, Long userId) throws Exception {
         User user = userService.findByUserId(userId);
         Issue issue = getIssueById(issueId);
+
+        // Get project for authorization check and response
+        Project project = issue.getProject();
+
         issue.setAssignee(user);
         Issue updatedIssue = issueRepository.save(issue);
         return Response.<IssueResponse>builder()
@@ -214,6 +269,8 @@ public class IssueServiceImpl implements IssueService {
                         .assignedDate(updatedIssue.getAssignedDate())
                         .dueDate(updatedIssue.getDueDate())
                         .projectId(updatedIssue.getProject().getId())
+                        .projectOwnerId(project.getOwner().getId())
+                        .createdById(updatedIssue.getCreatedBy().getId())
                         .assignee(updatedIssue.getAssignee())
                         .comments(updatedIssue.getComments())
                         .build())
@@ -227,10 +284,26 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
+        Project project = issue.getProject();
 
-        // Check authorization - only assignee can update status
-        if (issue.getAssignee() == null || !issue.getAssignee().getId().equals(userId)) {
-            throw new UnauthorizedException("Only the assignee can update the issue status");
+        //Allow assignee, issue creator, or project owner to update issue status
+        boolean canUpdateStatus = false;
+
+        // Check if user is the assignee
+        if (issue.getAssignee() != null && issue.getAssignee().getId().equals(userId)) {
+            canUpdateStatus = true;
+        }
+        // Check if user is the issue creator
+        else if (issue.getCreatedBy().getId().equals(userId)) {
+            canUpdateStatus = true;
+        }
+        // Check if user is the project owner
+        else if (project.getOwner().getId().equals(userId)) {
+            canUpdateStatus = true;
+        }
+
+        if (!canUpdateStatus) {
+            throw new UnauthorizedException("Only the assignee, issue creator, or project owner can update the issue status");
         }
 
         // Validate and set status
@@ -258,6 +331,7 @@ public class IssueServiceImpl implements IssueService {
                         .assignedDate(updatedIssue.getAssignedDate())
                         .dueDate(updatedIssue.getDueDate())
                         .projectId(updatedIssue.getProject().getId())
+                        .projectOwnerId(project.getOwner().getId())
                         .createdById(updatedIssue.getCreatedBy().getId())
                         .assignee(updatedIssue.getAssignee())
                         .comments(updatedIssue.getComments())

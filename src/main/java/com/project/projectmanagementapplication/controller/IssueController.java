@@ -1,5 +1,6 @@
 package com.project.projectmanagementapplication.controller;
 
+import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
 import com.project.projectmanagementapplication.dto.Response;
@@ -86,5 +87,11 @@ public class IssueController {
         User user = userService.findByUsername(username);
         Response<IssueResponse> response = issueService.updateIssueStatus(issueId, status, user.getId());
         return ResponseEntity.status(response.getStatus()).body(response);
+    }
+
+    @GetMapping("/{issueId}/detail")
+    public ResponseEntity<Response<IssueDetailResponse>> getIssueDetail(@PathVariable Long issueId) throws Exception {
+        Response<IssueDetailResponse> response = issueService.getIssueDetail(issueId);
+        return ResponseEntity.ok(response);
     }
 }
