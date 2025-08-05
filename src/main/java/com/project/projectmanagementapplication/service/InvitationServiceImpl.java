@@ -27,6 +27,9 @@ public class InvitationServiceImpl implements InvitationService {
     @Value("${app.invitation.expiry-hours}")
     private int expiryHours;
 
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
+
     private final InvitationRepository invitationRepository;
 
     private final EmailService emailService;
@@ -121,7 +124,9 @@ public class InvitationServiceImpl implements InvitationService {
     }
 
     private void sendInvitationEmail(Invitation invitation, String email) throws MessagingException {
-        String invitationLink = "http://localhost:5173/accept_invitation?token=" + invitation.getToken();
+        //String invitationLink = "http://localhost:5173/accept_invitation?token=" + invitation.getToken();
+        String invitationLink = frontendBaseUrl + invitation.getToken();
+
         emailService.sendEmailWithToken(email, invitationLink);
     }
 
