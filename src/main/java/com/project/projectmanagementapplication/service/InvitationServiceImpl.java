@@ -125,8 +125,8 @@ public class InvitationServiceImpl implements InvitationService {
 
     private void sendInvitationEmail(Invitation invitation, String email) throws MessagingException {
         //String invitationLink = "http://localhost:5173/accept_invitation?token=" + invitation.getToken();
-        String invitationLink = frontendBaseUrl + invitation.getToken();
-
+        String invitationLink = frontendBaseUrl + "/accept_invitation?token=" + invitation.getToken();
+        
         emailService.sendEmailWithToken(email, invitationLink);
     }
 
