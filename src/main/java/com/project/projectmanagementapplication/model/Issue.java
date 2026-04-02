@@ -7,12 +7,13 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Data
-public class Issue {
+public class Issue extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -42,6 +43,12 @@ public class Issue {
     @ManyToOne
     @JoinColumn(name = "created_by_id")
     private User createdBy;
+
+    @ManyToOne
+    @JoinColumn(name = "last_edited_by_id")
+    private User lastEditedBy;
+
+    private LocalDateTime lastEditedAt;
 
     @JsonIgnore
     @OneToMany(mappedBy = "issue", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -12,11 +12,11 @@ import jakarta.mail.MessagingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
+import java.time.LocalDateTime;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
 
 
 @RestController
@@ -55,95 +55,48 @@ public class EmailInviteController {
     }
 
     @PostMapping("/accept")
-    public ResponseEntity<Response<Void>> acceptInvitation(@RequestParam String token) {
-        try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String username = authentication.getName();
-            User user = userService.findByUsername(username);
+    public ResponseEntity<Response<Void>> acceptInvitation(@RequestParam String token) throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
 
-            Response<Invitation> invitationResponse = invitationService.acceptInvitation(token, user.getId());
-            Invitation invitation = invitationResponse.getData();
+        Response<Invitation> invitationResponse = invitationService.acceptInvitation(token, user.getId());
+        Invitation invitation = invitationResponse.getData();
 
-            // Add user to project
-            projectService.addUserToProject(user.getId(), invitation.getProjectId());
+        projectService.addUserToProject(user.getId(), invitation.getProjectId());
+        invitationService.deleteToken(token);
 
-            // Clean up invitation token
-            invitationService.deleteToken(token);
-
-            return ResponseEntity.ok(Response.<Void>builder()
-                    .message("Successfully joined the project!")
-                    .status(HttpStatus.OK)
-                    .statusCode(HttpStatus.OK.value())
-                    .timestamp(LocalDateTime.now().toString())
-                    .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Response.<Void>builder()
-                            .message("Failed to accept invitation: " + e.getMessage())
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .timestamp(LocalDateTime.now().toString())
-                            .build());
-        }
+        return ResponseEntity.ok(Response.<Void>builder()
+                .message("Successfully joined the project!")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build());
     }
 
-    // NEW PUBLIC ENDPOINTS (no authentication required)
     @GetMapping("/details/{token}")
     public ResponseEntity<Response<ProjectDetailsResponse>> getInvitationDetails(
-            @PathVariable String token) {
-        try {
-            Response<ProjectDetailsResponse> response = invitationService.getInvitationDetails(token);
-            return new ResponseEntity<>(response, response.getStatus());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Response.<ProjectDetailsResponse>builder()
-                            .message("Error retrieving invitation: " + e.getMessage())
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .timestamp(LocalDateTime.now().toString())
-                            .build());
-        }
+            @PathVariable String token) throws Exception {
+        Response<ProjectDetailsResponse> response = invitationService.getInvitationDetails(token);
+        return new ResponseEntity<>(response, response.getStatus());
     }
 
     @PostMapping("/accept/{token}")
     public ResponseEntity<Response<InvitationAcceptanceResponse>> acceptInvitationPublic(
             @PathVariable String token,
-            @RequestBody InvitationAcceptRequest request) {
-        try {
-            Response<InvitationAcceptanceResponse> response =
-                    invitationService.processInvitationAcceptance(token, request.getUserEmail());
-            return new ResponseEntity<>(response, response.getStatus());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Response.<InvitationAcceptanceResponse>builder()
-                            .message("Error accepting invitation: " + e.getMessage())
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .timestamp(LocalDateTime.now().toString())
-                            .build());
-        }
+            @RequestBody InvitationAcceptRequest request) throws Exception {
+        Response<InvitationAcceptanceResponse> response =
+                invitationService.processInvitationAcceptance(token, request.getUserEmail());
+        return new ResponseEntity<>(response, response.getStatus());
     }
 
-    // Endpoint to be called after user registration/login
     @PostMapping("/process-pending")
-    public ResponseEntity<Response<Void>> processPendingInvitations() {
-        try {
-            // Get current authenticated user
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String username = authentication.getName();
+    public ResponseEntity<Response<Boolean>> processPendingInvitations() throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
 
-            Response<Void> response = invitationService.acceptInvitationAfterRegistration(username);
-            return new ResponseEntity<>(response, response.getStatus());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Response.<Void>builder()
-                            .message("Error processing pending invitations: " + e.getMessage())
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .timestamp(LocalDateTime.now().toString())
-                            .build());
-        }
+        Response<Boolean> response = invitationService.acceptInvitationAfterRegistration(username);
+        return new ResponseEntity<>(response, response.getStatus());
     }
 }
 

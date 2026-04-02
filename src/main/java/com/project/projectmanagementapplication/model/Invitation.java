@@ -4,15 +4,13 @@ import com.project.projectmanagementapplication.enums.INVITATION_STATUS;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Data
 @NoArgsConstructor
-public class Invitation {
+public class Invitation extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
@@ -32,12 +30,6 @@ public class Invitation {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private INVITATION_STATUS status = INVITATION_STATUS.PENDING;
-
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     @Column(nullable = false)
     private LocalDateTime expiresAt;

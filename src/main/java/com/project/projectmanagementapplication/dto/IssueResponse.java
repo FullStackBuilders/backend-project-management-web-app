@@ -7,36 +7,32 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
 @Builder
 public class IssueResponse {
-
     private Long id;
-
     private String title;
-
     private String description;
-
     private String status;
-
     private String priority;
-
     private LocalDate assignedDate;
-
     private LocalDate dueDate;
 
     private Long createdById;
+    private String createdByName;
 
-    private User assignee;
+    private Long assigneeId;
+    private String assigneeName;
 
     private Long projectId;
-
     private Long projectOwnerId;
 
-    private Project project;
+    private Integer commentCount;
 
-    private List<Comment> comments = new ArrayList<>();
+    private String lastEditedByName;
+    private LocalDateTime lastEditedAt;
 }

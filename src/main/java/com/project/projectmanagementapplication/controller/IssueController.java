@@ -1,5 +1,6 @@
 package com.project.projectmanagementapplication.controller;
 
+import com.project.projectmanagementapplication.dto.IssueCountsResponse;
 import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
@@ -27,6 +28,7 @@ public class IssueController {
         this.userService = userService;
     }
 
+    //<!> This API is directly returning Issue Entity. This is not good practice and should return DTO.
     @GetMapping("/{issueId}")
     public ResponseEntity<Issue> getIssueById(@PathVariable Long issueId) throws Exception {
         Issue issue = issueService.getIssueById(issueId);
@@ -93,5 +95,14 @@ public class IssueController {
     public ResponseEntity<Response<IssueDetailResponse>> getIssueDetail(@PathVariable Long issueId) throws Exception {
         Response<IssueDetailResponse> response = issueService.getIssueDetail(issueId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<Response<IssueCountsResponse>> getIssueCountsForCurrentUser() throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
+        Response<IssueCountsResponse> response = issueService.getIssueCountsForUser(user);
+        return ResponseEntity.status(response.getStatus()).body(response);
     }
 }

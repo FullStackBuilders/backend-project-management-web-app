@@ -20,29 +20,19 @@ public class PaymentController {
     }
 
     @PostMapping("/{planType}")
-    public ResponseEntity<Response<PaymentResponse>>createPaymentLink(@PathVariable PLAN_TYPE planType) {
-            try {
-                // Assuming the planType is used to determine the amount or other parameters
-                long amount = 799 * 100; // Example amount in cents (799.00)
-                if(planType.equals(PLAN_TYPE.Annual)){
-                    amount =  1999 * 100; // Annual plan, multiply by 12
-                    //amount = (long) (amount * 0.9); // Apply 10% discount for annual plan
-                }
+    public ResponseEntity<Response<PaymentResponse>> createPaymentLink(@PathVariable PLAN_TYPE planType) throws Exception {
+        long amount = 799 * 100;
+        if (planType.equals(PLAN_TYPE.Annual)) {
+            amount = 1999 * 100;
+        }
 
-
-                PaymentResponse paymentResponse = paymentService.createPaymentLink(planType,amount);
-                return ResponseEntity.status(HttpStatus.CREATED)
-                        .body(Response.<PaymentResponse>builder()
-                                .status(HttpStatus.CREATED)
-                                .message("Payment link created successfully")
-                                .data(paymentResponse)
-                                .build());
-            } catch (Exception e) {
-               return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Response.<PaymentResponse>builder()
-                        .status(HttpStatus.BAD_REQUEST)
-                        .message("Failed to create payment  link: " + e.getMessage())
+        PaymentResponse paymentResponse = paymentService.createPaymentLink(planType, amount);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Response.<PaymentResponse>builder()
+                        .status(HttpStatus.CREATED)
+                        .message("Payment link created successfully")
+                        .data(paymentResponse)
                         .build());
-            }
     }
 
 }

@@ -12,4 +12,5 @@ public class ProjectDetailsResponse {
     private String ownerName;
     private int teamSize;
     private String token;
+    private String invitedEmail;
 }

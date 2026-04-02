@@ -35,7 +35,6 @@ public class MessageServiceImpl implements MessageService {
         chatMessage.setSender(sender);
         chatMessage.setChat(chat);
         chatMessage.setContent(content);
-        chatMessage.setCreatedAt(LocalDateTime.now());
         ChatMessage savedChatMessage = messageRepository.save(chatMessage);
         return Response.<ChatMessage>builder()
                 .data(savedChatMessage)

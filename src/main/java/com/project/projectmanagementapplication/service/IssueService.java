@@ -1,5 +1,6 @@
 package com.project.projectmanagementapplication.service;
 
+import com.project.projectmanagementapplication.dto.IssueCountsResponse;
 import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
@@ -27,4 +28,6 @@ public interface IssueService {
     Response<IssueResponse> updateIssue(Long issueId, IssueRequest issueRequest, Long userId) throws Exception;
 
     Response<IssueDetailResponse> getIssueDetail(Long issueId) throws Exception;
+
+    Response<IssueCountsResponse> getIssueCountsForUser(User user) throws Exception;
 }

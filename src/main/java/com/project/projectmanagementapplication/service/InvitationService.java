@@ -21,5 +21,5 @@ public interface InvitationService {
 
     Response<ProjectDetailsResponse> getInvitationDetails(String token) throws Exception;
 
-    Response<Void> acceptInvitationAfterRegistration(String userEmail) throws Exception;
+    Response<Boolean> acceptInvitationAfterRegistration(String userEmail) throws Exception;
 }

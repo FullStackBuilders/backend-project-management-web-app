@@ -1,5 +1,6 @@
 package com.project.projectmanagementapplication.service;
 
+import com.project.projectmanagementapplication.dto.IssueCountsResponse;
 import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
@@ -8,6 +9,7 @@ import com.project.projectmanagementapplication.enums.ISSUE_PRIORITY;
 import com.project.projectmanagementapplication.enums.ISSUE_STATUS;
 import com.project.projectmanagementapplication.exception.ResourceNotFoundException;
 import com.project.projectmanagementapplication.exception.UnauthorizedException;
+import com.project.projectmanagementapplication.mapper.IssueMapper;
 import com.project.projectmanagementapplication.model.Issue;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
@@ -26,12 +28,14 @@ import java.util.Optional;
 public class IssueServiceImpl implements IssueService {
 
     private final IssueRepository issueRepository;
+    private final IssueMapper issueMapper;
     private final ProjectService projectService;
     private final UserService userService;
 
     @Autowired
-    public IssueServiceImpl(IssueRepository issueRepository, ProjectService projectService, UserService userService) {
+    public IssueServiceImpl(IssueRepository issueRepository, IssueMapper issueMapper, ProjectService projectService, UserService userService) {
         this.issueRepository = issueRepository;
+        this.issueMapper = issueMapper;
         this.projectService = projectService;
         this.userService = userService;
     }
@@ -58,21 +62,9 @@ public class IssueServiceImpl implements IssueService {
         List<Issue> issues = issueRepository.findByProjectId(projectId);
 
         // Handle empty issues list - this is valid, not an error
-        List<IssueResponse> issueResponses = issues.stream().map(issue -> IssueResponse.builder()
-                .id(issue.getId())
-                .title(issue.getTitle())
-                .description(issue.getDescription())
-                .status(issue.getStatus().toString())
-                .priority(issue.getPriority().toString())
-                .assignedDate(issue.getAssignedDate())
-                .dueDate(issue.getDueDate())
-                .createdById(issue.getCreatedBy().getId())
-                .assignee(issue.getAssignee())
-                .projectId(issue.getProject() != null ? issue.getProject().getId() : null)
-                .projectOwnerId(project.getOwner().getId()) // Add project owner ID
-                .project(null)
-                .comments(issue.getComments())
-                .build()).toList();
+        List<IssueResponse> issueResponses = issues.stream()
+                .map(issue -> issueMapper.toIssueResponse(issue, project))
+                .toList();
 
         String message = issues.isEmpty() ?
                 "No issues found for this project" :
@@ -109,21 +101,9 @@ public class IssueServiceImpl implements IssueService {
             issue.setProject(project);
             Issue createdIssue = issueRepository.save(issue);
 
+            IssueResponse issueResponse = issueMapper.toIssueResponse(createdIssue, project);
             return Response.<IssueResponse>builder()
-                    .data(IssueResponse.builder()
-                            .id(createdIssue.getId())
-                            .title(createdIssue.getTitle())
-                            .description(createdIssue.getDescription())
-                            .status(createdIssue.getStatus().toString())
-                            .priority(createdIssue.getPriority().toString())
-                            .assignedDate(createdIssue.getAssignedDate())
-                            .dueDate(createdIssue.getDueDate())
-                            .createdById(createdIssue.getCreatedBy().getId())
-                            .assignee(createdIssue.getAssignee())
-                            .projectId(createdIssue.getProject().getId())
-                            .projectOwnerId(project.getOwner().getId())
-                            .comments(createdIssue.getComments())
-                            .build())
+                    .data(issueResponse)
                     .message("Issue created successfully")
                     .status(HttpStatus.CREATED)
                     .statusCode(HttpStatus.CREATED.value())
@@ -139,8 +119,10 @@ public class IssueServiceImpl implements IssueService {
     public Response<Long> deleteIssue(Long issueId, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
 
-        if (!issue.getCreatedBy().getId().equals(userId)) {
-            throw new UnauthorizedException("Only the creator can delete this issue.");
+        boolean isCreator = issue.getCreatedBy().getId().equals(userId);
+        boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
+        if (!isCreator && !isProjectOwner) {
+            throw new UnauthorizedException("Only the creator or project owner can delete this issue.");
         }
 
         issueRepository.deleteById(issue.getId());
@@ -158,7 +140,9 @@ public class IssueServiceImpl implements IssueService {
     public Response<IssueResponse> updateIssue(Long issueId, IssueRequest issueRequest, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
 
-        if (!issue.getCreatedBy().getId().equals(userId)) {
+        boolean isCreator = issue.getCreatedBy().getId().equals(userId);
+        boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
+        if (!isCreator && !isProjectOwner) {
             throw new UnauthorizedException("You are not authorized to update this issue");
         }
 
@@ -179,26 +163,16 @@ public class IssueServiceImpl implements IssueService {
 
         issue.setDueDate(issueRequest.getDueDate());
 
+        User editor = userService.findByUserId(userId);
+        issue.setLastEditedBy(editor);
+        issue.setLastEditedAt(LocalDateTime.now());
+
         Issue updatedIssue = issueRepository.save(issue);
 
-        IssueResponse responseData = IssueResponse.builder()
-                .id(updatedIssue.getId())
-                .title(updatedIssue.getTitle())
-                .description(updatedIssue.getDescription())
-                .status(updatedIssue.getStatus().toString())
-                .priority(updatedIssue.getPriority().toString())
-                .assignedDate(updatedIssue.getAssignedDate())
-                .dueDate(updatedIssue.getDueDate())
-                .createdById(issue.getCreatedBy().getId())
-                .assignee(updatedIssue.getAssignee())
-                .projectId(updatedIssue.getProject() != null ? updatedIssue.getProject().getId() : null)
-                .projectOwnerId(project.getOwner().getId())
-                .createdById(updatedIssue.getCreatedBy().getId())
-                .comments(updatedIssue.getComments())
-                .build();
+        IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
 
         return Response.<IssueResponse>builder()
-                .data(responseData)
+                .data(issueResponse)
                 .message("Issue updated successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
@@ -210,38 +184,11 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueDetailResponse> getIssueDetail(Long issueId) throws Exception {
         Issue issue = getIssueById(issueId);
-        Project project = issue.getProject();
 
-        IssueDetailResponse detailResponse = IssueDetailResponse.builder()
-                .id(issue.getId())
-                .title(issue.getTitle())
-                .description(issue.getDescription())
-                .status(issue.getStatus().toString())
-                .priority(issue.getPriority().toString())
-                .assignedDate(issue.getAssignedDate())
-                .dueDate(issue.getDueDate())
-
-                // Issue creator details
-                .createdById(issue.getCreatedBy().getId())
-                .createdByName(issue.getCreatedBy().getFirstName() + " " + issue.getCreatedBy().getLastName())
-
-                // Assignee details (if assigned)
-                .assigneeId(issue.getAssignee() != null ? issue.getAssignee().getId() : null)
-                .assigneeName(issue.getAssignee() != null ?
-                        issue.getAssignee().getFirstName() + " " + issue.getAssignee().getLastName() : null)
-
-                // Project details
-                .projectId(project.getId())
-                .projectName(project.getName())
-                .projectOwnerId(project.getOwner().getId())
-                .projectOwnerName(project.getOwner().getFirstName() + " " + project.getOwner().getLastName())
-
-                // Comments
-                .comments(issue.getComments())
-                .build();
+        IssueDetailResponse issueDetailResponse = issueMapper.toIssueDetailResponse(issue);
 
         return Response.<IssueDetailResponse>builder()
-                .data(detailResponse)
+                .data(issueDetailResponse)
                 .message("Issue details retrieved successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
@@ -259,21 +206,9 @@ public class IssueServiceImpl implements IssueService {
 
         issue.setAssignee(user);
         Issue updatedIssue = issueRepository.save(issue);
+        IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
         return Response.<IssueResponse>builder()
-                .data(IssueResponse.builder()
-                        .id(updatedIssue.getId())
-                        .title(updatedIssue.getTitle())
-                        .description(updatedIssue.getDescription())
-                        .status(updatedIssue.getStatus().toString())
-                        .priority(updatedIssue.getPriority().toString())
-                        .assignedDate(updatedIssue.getAssignedDate())
-                        .dueDate(updatedIssue.getDueDate())
-                        .projectId(updatedIssue.getProject().getId())
-                        .projectOwnerId(project.getOwner().getId())
-                        .createdById(updatedIssue.getCreatedBy().getId())
-                        .assignee(updatedIssue.getAssignee())
-                        .comments(updatedIssue.getComments())
-                        .build())
+                .data(issueResponse)
                 .message("User added to issue successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
@@ -321,22 +256,59 @@ public class IssueServiceImpl implements IssueService {
         }
 
         Issue updatedIssue = issueRepository.save(issue);
+        IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
         return Response.<IssueResponse>builder()
-                .data(IssueResponse.builder()
-                        .id(updatedIssue.getId())
-                        .title(updatedIssue.getTitle())
-                        .description(updatedIssue.getDescription())
-                        .status(updatedIssue.getStatus().toString())
-                        .priority(updatedIssue.getPriority().toString())
-                        .assignedDate(updatedIssue.getAssignedDate())
-                        .dueDate(updatedIssue.getDueDate())
-                        .projectId(updatedIssue.getProject().getId())
-                        .projectOwnerId(project.getOwner().getId())
-                        .createdById(updatedIssue.getCreatedBy().getId())
-                        .assignee(updatedIssue.getAssignee())
-                        .comments(updatedIssue.getComments())
-                        .build())
+                .data(issueResponse)
                 .message("Issue status updated successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
+    public Response<IssueCountsResponse> getIssueCountsForUser(User user) throws Exception {
+        List<Project> relevantProjects = projectService.getAllProjectForUser(user, null, null).getData();
+
+        long assignedTasks = issueRepository.countByAssigneeAndProjectIn(user, relevantProjects);
+        long overdueTasks = issueRepository
+                .countByAssigneeAndProjectInAndDueDateBeforeAndStatusNot(
+                        user,
+                        relevantProjects,
+                        LocalDate.now(),
+                        ISSUE_STATUS.DONE);
+
+        long dueTodayTasks = issueRepository
+                .countByAssigneeAndProjectInAndDueDateAndStatusNot(
+                        user,
+                        relevantProjects,
+                        LocalDate.now(),
+                        ISSUE_STATUS.DONE);
+
+        long highPriorityTasks = issueRepository
+                .countByAssigneeAndProjectInAndPriorityAndStatusNot(
+                        user,
+                        relevantProjects,
+                        ISSUE_PRIORITY.HIGH,
+                        ISSUE_STATUS.DONE);
+
+        long completedTasks = issueRepository
+                .countByAssigneeAndProjectInAndStatus(
+                        user,
+                        relevantProjects,
+                        ISSUE_STATUS.DONE);
+
+        IssueCountsResponse counts = IssueCountsResponse.builder()
+                .assignedTasks(assignedTasks)
+                .overdueTasks(overdueTasks)
+                .dueTodayTasks(dueTodayTasks)
+                .highPriorityTasks(highPriorityTasks)
+                .completedTasks(completedTasks)
+                .build();
+
+        return Response.<IssueCountsResponse>builder()
+                .data(counts)
+                .message("Issue counts retrieved successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())

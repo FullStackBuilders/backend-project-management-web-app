@@ -212,6 +212,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .ownerName(project.getOwner().getFirstName())
                 .teamSize(project.getTeam().size())
                 .token(token)
+                .invitedEmail(invitation.getEmail())
                 .build();
 
         return Response.<ProjectDetailsResponse>builder()
@@ -267,7 +268,7 @@ public class InvitationServiceImpl implements InvitationService {
             // If user exists, add them to project immediately
             projectService.addUserToProject(user.getId(), invitation.getProjectId());
 
-            // Mark invitation as accepted - THIS WAS MISSING SAVE!
+            // Mark invitation as accepted 
             invitation.setStatus(INVITATION_STATUS.ACCEPTED);
             invitationRepository.save(invitation);
 
@@ -276,7 +277,6 @@ public class InvitationServiceImpl implements InvitationService {
             userExists = false;
             isNewUser = true;
 
-            invitation.setUpdatedAt(LocalDateTime.now());
             invitationRepository.save(invitation);
         }
 
@@ -300,13 +300,14 @@ public class InvitationServiceImpl implements InvitationService {
     }
 
     @Override
-    public Response<Void> acceptInvitationAfterRegistration(String userEmail) throws Exception {
+    public Response<Boolean> acceptInvitationAfterRegistration(String userEmail) throws Exception {
         // Find pending invitation for this email
         List<Invitation> pendingInvitations = invitationRepository
                 .findByEmailAndStatus(userEmail, INVITATION_STATUS.PENDING);
 
         if (pendingInvitations.isEmpty()) {
-            return Response.<Void>builder()
+            return Response.<Boolean>builder()
+                    .data(false)
                     .message("No pending invitations found")
                     .status(HttpStatus.OK)
                     .statusCode(HttpStatus.OK.value())
@@ -328,7 +329,8 @@ public class InvitationServiceImpl implements InvitationService {
             }
         }
 
-        return Response.<Void>builder()
+        return Response.<Boolean>builder()
+                .data(true)
                 .message("Pending invitations processed successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())

@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 @Entity
 @Data
-public class Subscription {
+public class Subscription extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

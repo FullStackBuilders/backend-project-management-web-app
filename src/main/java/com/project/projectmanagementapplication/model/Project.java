@@ -12,7 +12,7 @@ import java.util.List;
 
 @Entity
 @Data
-public class Project {
+public class Project extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
