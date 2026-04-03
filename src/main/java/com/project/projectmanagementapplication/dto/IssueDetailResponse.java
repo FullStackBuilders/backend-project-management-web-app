@@ -24,6 +24,9 @@ public class IssueDetailResponse {
     private Long assigneeId;
     private String assigneeName;
 
+    private Long assignedById;
+    private String assignedByName;
+
     private Long projectId;
     private String projectName;
     private Long projectOwnerId;

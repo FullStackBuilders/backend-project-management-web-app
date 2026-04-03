@@ -36,6 +36,10 @@ public class Issue extends AuditableEntity {
     @ManyToOne
     private User assignee;
 
+    @ManyToOne
+    @JoinColumn(name = "assigned_by_id")
+    private User assignedBy;
+
     @JsonIgnore
     @ManyToOne
     private Project project;

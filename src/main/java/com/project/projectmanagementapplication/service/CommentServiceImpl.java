@@ -26,9 +26,9 @@ public class CommentServiceImpl implements CommentService {
     private final UserService userService;
 
     @Autowired
-    public CommentServiceImpl(CommentRepository commentRepository, IssueService issueService, IssueService issueService1, UserService userService) {
+    public CommentServiceImpl(CommentRepository commentRepository, IssueService issueService, UserService userService) {
         this.commentRepository = commentRepository;
-        this.issueService = issueService1;
+        this.issueService = issueService;
         this.userService = userService;
     }
 

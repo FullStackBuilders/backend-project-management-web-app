@@ -99,6 +99,15 @@ public class IssueServiceImpl implements IssueService {
             issue.setAssignedDate(LocalDate.now());
             issue.setDueDate(issueRequest.getDueDate());
             issue.setProject(project);
+
+            // If an assignee was selected at creation time, set it now without touching the audit trail.
+            // lastEditedBy/lastEditedAt are intentionally left null — they only reflect post-creation edits.
+            if (issueRequest.getAssigneeId() != null) {
+                User assignee = userService.findByUserId(issueRequest.getAssigneeId());
+                issue.setAssignee(assignee);
+                issue.setAssignedBy(user);
+            }
+
             Issue createdIssue = issueRepository.save(issue);
 
             IssueResponse issueResponse = issueMapper.toIssueResponse(createdIssue, project);
@@ -197,19 +206,29 @@ public class IssueServiceImpl implements IssueService {
     }
 
     @Override
-    public Response<IssueResponse> addUserToIssue(Long issueId, Long userId) throws Exception {
-        User user = userService.findByUserId(userId);
+    public Response<IssueResponse> addUserToIssue(Long issueId, Long assigneeUserId, Long callerId) throws Exception {
         Issue issue = getIssueById(issueId);
-
-        // Get project for authorization check and response
         Project project = issue.getProject();
 
-        issue.setAssignee(user);
+        boolean isCreator      = issue.getCreatedBy().getId().equals(callerId);
+        boolean isProjectOwner = project.getOwner().getId().equals(callerId);
+        if (!isCreator && !isProjectOwner) {
+            throw new UnauthorizedException("Only the issue creator or project owner can assign this issue.");
+        }
+
+        User assignee = userService.findByUserId(assigneeUserId);
+        User caller   = userService.findByUserId(callerId);
+
+        issue.setAssignee(assignee);
+        issue.setAssignedBy(caller);
+        issue.setLastEditedBy(caller);
+        issue.setLastEditedAt(LocalDateTime.now());
+
         Issue updatedIssue = issueRepository.save(issue);
         IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
         return Response.<IssueResponse>builder()
                 .data(issueResponse)
-                .message("User added to issue successfully")
+                .message("Assignee updated successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())

@@ -21,7 +21,7 @@ public interface IssueService {
 
     Response<Long>  deleteIssue(Long issueId, Long userId) throws Exception;
 
-    Response<IssueResponse>  addUserToIssue(Long issueId, Long userId) throws Exception;
+    Response<IssueResponse>  addUserToIssue(Long issueId, Long assigneeUserId, Long callerId) throws Exception;
 
     Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception;
 

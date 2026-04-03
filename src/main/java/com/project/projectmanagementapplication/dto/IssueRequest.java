@@ -16,6 +16,7 @@ public class IssueRequest {
 
     private LocalDate dueDate;
 
-
+    // Optional — only used at creation time to set the initial assignee without touching the audit trail
+    private Long assigneeId;
 
 }

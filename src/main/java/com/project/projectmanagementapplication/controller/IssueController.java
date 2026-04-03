@@ -76,8 +76,10 @@ public class IssueController {
     @PutMapping("/{issueId}/assignee/{userId}")
     public ResponseEntity<Response<IssueResponse>> addUserToIssue(@PathVariable Long issueId,
                                                                   @PathVariable Long userId) throws Exception {
-
-        Response<IssueResponse> response = issueService.addUserToIssue(issueId, userId);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User caller = userService.findByUsername(username);
+        Response<IssueResponse> response = issueService.addUserToIssue(issueId, userId, caller.getId());
         return ResponseEntity.status(response.getStatus()).body(response);
     }
 
