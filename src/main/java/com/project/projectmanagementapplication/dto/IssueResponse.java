@@ -38,4 +38,9 @@ public class IssueResponse {
 
     private String lastEditedByName;
     private LocalDateTime lastEditedAt;
+
+    // Workflow timestamps for Kanban metrics
+    private LocalDateTime taskCreatedAt;    // sourced from AuditableEntity.createdAt — for Lead Time
+    private LocalDateTime taskStartedAt;    // first IN_PROGRESS entry — for Cycle Time
+    private LocalDateTime taskCompletedAt;  // DONE entry — for Cycle Time, Lead Time, Throughput
 }

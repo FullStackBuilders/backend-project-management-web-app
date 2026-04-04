@@ -38,6 +38,9 @@ public class IssueMapper {
                 .commentCount(issue.getComments() != null ? issue.getComments().size() : 0)
                 .lastEditedByName(issue.getLastEditedBy() != null ? fullName(issue.getLastEditedBy()) : null)
                 .lastEditedAt(issue.getLastEditedAt())
+                .taskCreatedAt(issue.getCreatedAt())
+                .taskStartedAt(issue.getTaskStartedAt())
+                .taskCompletedAt(issue.getTaskCompletedAt())
                 .build();
     }
 

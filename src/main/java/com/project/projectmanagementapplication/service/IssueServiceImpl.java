@@ -260,15 +260,24 @@ public class IssueServiceImpl implements IssueService {
             throw new UnauthorizedException("Only the assignee, issue creator, or project owner can update the issue status");
         }
 
-        // Validate and set status
-        if(status.equals(ISSUE_STATUS.TO_DO.toString())){
+        // Validate, set status, and record workflow timestamps for Kanban metrics
+        if (status.equals(ISSUE_STATUS.TO_DO.toString())) {
             issue.setStatus(ISSUE_STATUS.TO_DO);
+            // Task reopened — clear completion timestamp; taskStartedAt is preserved intentionally
+            issue.setTaskCompletedAt(null);
         }
-        else if(status.equals(ISSUE_STATUS.IN_PROGRESS.toString())){
+        else if (status.equals(ISSUE_STATUS.IN_PROGRESS.toString())) {
             issue.setStatus(ISSUE_STATUS.IN_PROGRESS);
+            // Record when work first started — never overwrite once set
+            if (issue.getTaskStartedAt() == null) {
+                issue.setTaskStartedAt(LocalDateTime.now());
+            }
+            // Task moved back from DONE — clear completion timestamp
+            issue.setTaskCompletedAt(null);
         }
-        else if(status.equals(ISSUE_STATUS.DONE.toString())){
+        else if (status.equals(ISSUE_STATUS.DONE.toString())) {
             issue.setStatus(ISSUE_STATUS.DONE);
+            issue.setTaskCompletedAt(LocalDateTime.now());
         }
         else {
             throw new BadRequestException("Invalid status: " + status);

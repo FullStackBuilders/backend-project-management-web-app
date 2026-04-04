@@ -54,6 +54,10 @@ public class Issue extends AuditableEntity {
 
     private LocalDateTime lastEditedAt;
 
+    // Workflow timestamps for Kanban metrics — separate from generic audit fields
+    private LocalDateTime taskStartedAt;    // set when task first enters IN_PROGRESS; never overwritten
+    private LocalDateTime taskCompletedAt;  // set when task enters DONE; cleared when task is reopened
+
     @JsonIgnore
     @OneToMany(mappedBy = "issue", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comment> comments = new ArrayList<>();
