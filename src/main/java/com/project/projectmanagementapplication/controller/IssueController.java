@@ -83,6 +83,15 @@ public class IssueController {
         return ResponseEntity.status(response.getStatus()).body(response);
     }
 
+    @DeleteMapping("/{issueId}/assignee")
+    public ResponseEntity<Response<IssueResponse>> removeAssigneeFromIssue(@PathVariable Long issueId) throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User caller = userService.findByUsername(username);
+        Response<IssueResponse> response = issueService.removeAssigneeFromIssue(issueId, caller.getId());
+        return ResponseEntity.status(response.getStatus()).body(response);
+    }
+
     @PutMapping("/{issueId}/status/{status}")
     public ResponseEntity<Response<IssueResponse>> updateIssueStatus(@PathVariable Long issueId,
                                                                      @PathVariable String status) throws Exception {

@@ -23,6 +23,8 @@ public interface IssueService {
 
     Response<IssueResponse>  addUserToIssue(Long issueId, Long assigneeUserId, Long callerId) throws Exception;
 
+    Response<IssueResponse> removeAssigneeFromIssue(Long issueId, Long callerId) throws Exception;
+
     Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception;
 
     Response<IssueResponse> updateIssue(Long issueId, IssueRequest issueRequest, Long userId) throws Exception;

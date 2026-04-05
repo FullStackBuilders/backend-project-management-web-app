@@ -236,6 +236,34 @@ public class IssueServiceImpl implements IssueService {
     }
 
     @Override
+    public Response<IssueResponse> removeAssigneeFromIssue(Long issueId, Long callerId) throws Exception {
+        Issue issue = getIssueById(issueId);
+        Project project = issue.getProject();
+
+        boolean isCreator = issue.getCreatedBy().getId().equals(callerId);
+        boolean isProjectOwner = project.getOwner().getId().equals(callerId);
+        if (!isCreator && !isProjectOwner) {
+            throw new UnauthorizedException("Only the issue creator or project owner can remove the assignee.");
+        }
+
+        User caller = userService.findByUserId(callerId);
+        issue.setAssignee(null);
+        issue.setAssignedBy(caller);
+        issue.setLastEditedBy(caller);
+        issue.setLastEditedAt(LocalDateTime.now());
+
+        Issue updatedIssue = issueRepository.save(issue);
+        IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
+        return Response.<IssueResponse>builder()
+                .data(issueResponse)
+                .message("Assignee removed successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
     public Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
         Project project = issue.getProject();
@@ -282,6 +310,10 @@ public class IssueServiceImpl implements IssueService {
         else {
             throw new BadRequestException("Invalid status: " + status);
         }
+
+        User editor = userService.findByUserId(userId);
+        issue.setLastEditedBy(editor);
+        issue.setLastEditedAt(LocalDateTime.now());
 
         Issue updatedIssue = issueRepository.save(issue);
         IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
