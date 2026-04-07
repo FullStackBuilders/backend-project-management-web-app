@@ -330,6 +330,7 @@ class IssueServiceImplTest {
         ArgumentCaptor<Issue> savedCaptor = ArgumentCaptor.forClass(Issue.class);
         verify(issueRepository).save(savedCaptor.capture());
         assertSame(sprint, savedCaptor.getValue().getSprint());
+        assertEquals(ISSUE_STATUS.TO_DO, savedCaptor.getValue().getStatus());
 
         verify(issueActivityRecorder).recordSingleFieldUpdate(
                 any(Issue.class),
@@ -370,6 +371,168 @@ class IssueServiceImplTest {
 
         assertThrows(BadRequestException.class, () -> issueService.assignIssueSprint(issueId, req, userId));
         verify(issueRepository, never()).save(any());
+    }
+
+    @Test
+    void assignIssueSprint_fromInProgress_resetsToTodoAndRecordsStatus() throws Exception {
+        Long issueId = 7L;
+        Long ownerId = 1L;
+        Long sprintId = 50L;
+
+        User owner = new User();
+        owner.setId(ownerId);
+        Project project = new Project();
+        project.setId(3L);
+        project.setFramework(PROJECT_FRAMEWORK.SCRUM);
+        project.setOwner(owner);
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setName("Sprint A");
+        sprint.setStatus(SPRINT_STATUS.INACTIVE);
+        sprint.setProject(project);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setProject(project);
+        issue.setCreatedBy(owner);
+        issue.setSprint(null);
+        issue.setStatus(ISSUE_STATUS.IN_PROGRESS);
+
+        IssueSprintAssignmentRequest req = new IssueSprintAssignmentRequest();
+        req.setSprintId(sprintId);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+        when(sprintRepository.findByIdAndProject_Id(sprintId, project.getId())).thenReturn(Optional.of(sprint));
+        when(userService.findByUserId(ownerId)).thenReturn(owner);
+        when(issueRepository.save(any(Issue.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(issueMapper.toIssueResponse(any(Issue.class), eq(project)))
+                .thenReturn(IssueResponse.builder().id(issueId).build());
+
+        issueService.assignIssueSprint(issueId, req, ownerId);
+
+        ArgumentCaptor<Issue> savedCaptor = ArgumentCaptor.forClass(Issue.class);
+        verify(issueRepository).save(savedCaptor.capture());
+        assertEquals(ISSUE_STATUS.TO_DO, savedCaptor.getValue().getStatus());
+
+        verify(issueActivityRecorder, times(2)).recordSingleFieldUpdate(
+                any(Issue.class), eq(owner), any(), any(), any(), any());
+    }
+
+    @Test
+    void assignIssueSprint_moveToBacklog_resetsToTodo() throws Exception {
+        Long issueId = 7L;
+        Long ownerId = 1L;
+
+        User owner = new User();
+        owner.setId(ownerId);
+        Project project = new Project();
+        project.setId(3L);
+        project.setFramework(PROJECT_FRAMEWORK.SCRUM);
+        project.setOwner(owner);
+
+        Sprint sprint = new Sprint();
+        sprint.setId(50L);
+        sprint.setStatus(SPRINT_STATUS.ACTIVE);
+        sprint.setProject(project);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setProject(project);
+        issue.setCreatedBy(owner);
+        issue.setSprint(sprint);
+        issue.setStatus(ISSUE_STATUS.DONE);
+
+        IssueSprintAssignmentRequest req = new IssueSprintAssignmentRequest();
+        req.setSprintId(null);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+        when(userService.findByUserId(ownerId)).thenReturn(owner);
+        when(issueRepository.save(any(Issue.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(issueMapper.toIssueResponse(any(Issue.class), eq(project)))
+                .thenReturn(IssueResponse.builder().id(issueId).build());
+
+        issueService.assignIssueSprint(issueId, req, ownerId);
+
+        ArgumentCaptor<Issue> savedCaptor = ArgumentCaptor.forClass(Issue.class);
+        verify(issueRepository).save(savedCaptor.capture());
+        assertNull(savedCaptor.getValue().getSprint());
+        assertEquals(ISSUE_STATUS.TO_DO, savedCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void updateIssueStatus_scrumBacklog_cannotMoveToInProgress() throws Exception {
+        Long issueId = 10L;
+        Long userId = 2L;
+
+        User u = new User();
+        u.setId(userId);
+        User owner = new User();
+        owner.setId(100L);
+        User creator = new User();
+        creator.setId(50L);
+
+        Project project = new Project();
+        project.setId(1L);
+        project.setFramework(PROJECT_FRAMEWORK.SCRUM);
+        project.setOwner(owner);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setTitle("Task");
+        issue.setStatus(ISSUE_STATUS.TO_DO);
+        issue.setProject(project);
+        issue.setCreatedBy(creator);
+        issue.setAssignee(u);
+        issue.setSprint(null);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> issueService.updateIssueStatus(issueId, ISSUE_STATUS.IN_PROGRESS.toString(), userId));
+        verify(issueRepository, never()).save(any());
+    }
+
+    @Test
+    void updateIssueStatus_scrumActiveSprint_allowsInProgress() throws Exception {
+        Long issueId = 10L;
+        Long userId = 2L;
+
+        User u = new User();
+        u.setId(userId);
+        User owner = new User();
+        owner.setId(100L);
+        User creator = new User();
+        creator.setId(50L);
+
+        Project project = new Project();
+        project.setId(1L);
+        project.setFramework(PROJECT_FRAMEWORK.SCRUM);
+        project.setOwner(owner);
+
+        Sprint sprint = new Sprint();
+        sprint.setId(5L);
+        sprint.setStatus(SPRINT_STATUS.ACTIVE);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setTitle("Task");
+        issue.setStatus(ISSUE_STATUS.TO_DO);
+        issue.setProject(project);
+        issue.setCreatedBy(creator);
+        issue.setAssignee(u);
+        issue.setSprint(sprint);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+        when(userService.findByUserId(userId)).thenReturn(u);
+        when(issueRepository.save(any(Issue.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(issueMapper.toIssueResponse(any(Issue.class), any(Project.class)))
+                .thenReturn(IssueResponse.builder().id(issueId).build());
+
+        issueService.updateIssueStatus(issueId, ISSUE_STATUS.IN_PROGRESS.toString(), userId);
+
+        verify(issueRepository).save(any());
     }
 
     @Test

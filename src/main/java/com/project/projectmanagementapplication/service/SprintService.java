@@ -14,6 +14,8 @@ public interface SprintService {
 
     Response<SprintResponse> createSprint(Long projectId, SprintCreateRequest request, User owner);
 
+    Response<SprintResponse> updateSprint(Long projectId, Long sprintId, SprintCreateRequest request, User owner);
+
     Response<SprintResponse> startSprint(Long projectId, Long sprintId, User owner, SprintStartRequest request);
 
     Response<SprintResponse> completeSprint(Long projectId, Long sprintId, User owner);

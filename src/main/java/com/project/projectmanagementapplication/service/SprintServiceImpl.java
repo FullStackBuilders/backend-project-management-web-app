@@ -102,6 +102,48 @@ public class SprintServiceImpl implements SprintService {
     }
 
     @Override
+    public Response<SprintResponse> updateSprint(
+            Long projectId, Long sprintId, SprintCreateRequest request, User owner) {
+        Project project = loadProject(projectId);
+        assertScrumProject(project);
+        assertProjectOwner(project, owner.getId());
+
+        Sprint sprint = sprintRepository
+                .findByIdAndProject_Id(sprintId, projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sprint not found for this project"));
+
+        if (sprint.getStatus() == SPRINT_STATUS.COMPLETED) {
+            throw new BadRequestException("Cannot edit a completed sprint");
+        }
+
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new BadRequestException("Sprint name is required");
+        }
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new BadRequestException("Start date and end date are required");
+        }
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            throw new BadRequestException("End date must be on or after start date");
+        }
+
+        sprint.setName(request.getName().trim());
+        sprint.setGoal(request.getGoal() != null ? request.getGoal().trim() : null);
+        sprint.setStartDate(request.getStartDate());
+        sprint.setEndDate(request.getEndDate());
+
+        Sprint saved = sprintRepository.save(sprint);
+        SprintResponse dto = sprintMapper.toResponse(saved);
+
+        return Response.<SprintResponse>builder()
+                .data(dto)
+                .message("Sprint updated successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
     public Response<SprintResponse> startSprint(
             Long projectId, Long sprintId, User owner, SprintStartRequest request) {
         Project project = loadProject(projectId);

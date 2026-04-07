@@ -207,6 +207,7 @@ public class IssueServiceImpl implements IssueService {
         }
 
         String oldLabel = IssueActivityValueFormats.sprintDisplay(issue.getSprint());
+        ISSUE_STATUS statusBeforeReset = issue.getStatus();
 
         if (request.getSprintId() == null) {
             issue.setSprint(null);
@@ -220,6 +221,8 @@ public class IssueServiceImpl implements IssueService {
             issue.setSprint(sprint);
         }
 
+        resetIssueToTodoClearingWorkflow(issue);
+
         User editor = userService.findByUserId(userId);
         LocalDateTime at = LocalDateTime.now();
         issue.setLastUpdatedBy(editor);
@@ -229,6 +232,15 @@ public class IssueServiceImpl implements IssueService {
         String newLabel = IssueActivityValueFormats.sprintDisplay(saved.getSprint());
         issueActivityRecorder.recordSingleFieldUpdate(
                 saved, editor, IssueTaskFieldNames.SPRINT, oldLabel, newLabel, at);
+        if (statusBeforeReset != null && statusBeforeReset != ISSUE_STATUS.TO_DO) {
+            issueActivityRecorder.recordSingleFieldUpdate(
+                    saved,
+                    editor,
+                    IssueTaskFieldNames.STATUS,
+                    IssueActivityValueFormats.statusDisplay(statusBeforeReset),
+                    IssueActivityValueFormats.statusDisplay(ISSUE_STATUS.TO_DO),
+                    at);
+        }
 
         IssueResponse issueResponse = issueMapper.toIssueResponse(saved, project);
         return Response.<IssueResponse>builder()
@@ -486,6 +498,16 @@ public class IssueServiceImpl implements IssueService {
             throw new BadRequestException("Invalid status: " + status);
         }
 
+        if (project.getFramework() == PROJECT_FRAMEWORK.SCRUM) {
+            Sprint sprint = issue.getSprint();
+            boolean inActiveSprint =
+                    sprint != null && sprint.getStatus() == SPRINT_STATUS.ACTIVE;
+            if (!inActiveSprint && target != ISSUE_STATUS.TO_DO) {
+                throw new BadRequestException(
+                        "In Scrum, task status can only move to In Progress or Done when the sprint is active");
+            }
+        }
+
         if (issue.getStatus() == target) {
             IssueResponse same = issueMapper.toIssueResponse(issue, project);
             return Response.<IssueResponse>builder()
@@ -587,6 +609,12 @@ public class IssueServiceImpl implements IssueService {
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())
                 .build();
+    }
+
+    private static void resetIssueToTodoClearingWorkflow(Issue issue) {
+        issue.setStatus(ISSUE_STATUS.TO_DO);
+        issue.setTaskCompletedAt(null);
+        issue.setTaskStartedAt(null);
     }
 
     private Project loadProjectOrNotFound(Long projectId) throws Exception {

@@ -42,6 +42,16 @@ public class SprintController {
         return ResponseEntity.status(response.getStatus()).body(response);
     }
 
+    @PutMapping("/{sprintId}")
+    public ResponseEntity<Response<SprintResponse>> updateSprint(
+            @PathVariable Long projectId,
+            @PathVariable Long sprintId,
+            @RequestBody SprintCreateRequest request) {
+        User owner = currentUser();
+        Response<SprintResponse> response = sprintService.updateSprint(projectId, sprintId, request, owner);
+        return ResponseEntity.status(response.getStatus()).body(response);
+    }
+
     @PostMapping("/{sprintId}/start")
     public ResponseEntity<Response<SprintResponse>> startSprint(
             @PathVariable Long projectId,

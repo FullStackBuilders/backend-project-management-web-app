@@ -8,6 +8,7 @@ import com.project.projectmanagementapplication.enums.ISSUE_STATUS;
 import com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK;
 import com.project.projectmanagementapplication.enums.SPRINT_STATUS;
 import com.project.projectmanagementapplication.exception.BadRequestException;
+import com.project.projectmanagementapplication.exception.ResourceNotFoundException;
 import com.project.projectmanagementapplication.exception.UnauthorizedException;
 import com.project.projectmanagementapplication.mapper.SprintMapper;
 import com.project.projectmanagementapplication.model.Issue;
@@ -137,6 +138,180 @@ class SprintServiceImplTest {
                 .thenReturn(Response.<Project>builder().data(project).build());
 
         assertThrows(BadRequestException.class, () -> sprintService.createSprint(projectId, req, owner));
+        verify(sprintRepository, never()).save(any());
+    }
+
+    @Test
+    void updateSprint_inactiveOwner_succeeds() {
+        long projectId = 1L;
+        long ownerId = 10L;
+        long sprintId = 50L;
+        Project project = scrumProject(projectId, ownerId);
+        User owner = project.getOwner();
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.INACTIVE);
+        sprint.setProject(project);
+        sprint.setName("Old");
+        sprint.setStartDate(LocalDate.of(2026, 4, 1));
+        sprint.setEndDate(LocalDate.of(2026, 4, 14));
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("New name");
+        req.setGoal(null);
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
+        when(sprintRepository.save(any(Sprint.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sprintMapper.toResponse(any(Sprint.class))).thenAnswer(inv -> {
+            Sprint s = inv.getArgument(0);
+            return SprintResponse.builder()
+                    .id(s.getId())
+                    .name(s.getName())
+                    .status(s.getStatus())
+                    .build();
+        });
+
+        var response = sprintService.updateSprint(projectId, sprintId, req, owner);
+
+        assertEquals("New name", response.getData().getName());
+        ArgumentCaptor<Sprint> cap = ArgumentCaptor.forClass(Sprint.class);
+        verify(sprintRepository).save(cap.capture());
+        assertEquals("New name", cap.getValue().getName());
+    }
+
+    @Test
+    void updateSprint_activeOwner_succeeds() {
+        long projectId = 1L;
+        long ownerId = 10L;
+        long sprintId = 50L;
+        Project project = scrumProject(projectId, ownerId);
+        User owner = project.getOwner();
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.ACTIVE);
+        sprint.setProject(project);
+        sprint.setName("S1");
+        sprint.setStartDate(LocalDate.of(2026, 4, 1));
+        sprint.setEndDate(LocalDate.of(2026, 4, 14));
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("S1 renamed");
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
+        when(sprintRepository.save(any(Sprint.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sprintMapper.toResponse(any(Sprint.class))).thenAnswer(inv -> {
+            Sprint s = inv.getArgument(0);
+            return SprintResponse.builder().id(s.getId()).name(s.getName()).status(s.getStatus()).build();
+        });
+
+        var response = sprintService.updateSprint(projectId, sprintId, req, owner);
+
+        assertEquals("S1 renamed", response.getData().getName());
+    }
+
+    @Test
+    void updateSprint_completed_throwsBadRequest() {
+        long projectId = 1L;
+        long sprintId = 50L;
+        Project project = scrumProject(projectId, 10L);
+        User owner = project.getOwner();
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.COMPLETED);
+        sprint.setProject(project);
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("X");
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
+
+        assertThrows(BadRequestException.class, () -> sprintService.updateSprint(projectId, sprintId, req, owner));
+        verify(sprintRepository, never()).save(any());
+    }
+
+    @Test
+    void updateSprint_nonOwner_throwsUnauthorized() {
+        long projectId = 1L;
+        long sprintId = 50L;
+        Project project = scrumProject(projectId, 1L);
+        User notOwner = new User();
+        notOwner.setId(2L);
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.INACTIVE);
+        sprint.setProject(project);
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("X");
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
+
+        assertThrows(UnauthorizedException.class, () -> sprintService.updateSprint(projectId, sprintId, req, notOwner));
+        verify(sprintRepository, never()).save(any());
+    }
+
+    @Test
+    void updateSprint_notFound_throwsResourceNotFound() {
+        long projectId = 1L;
+        long sprintId = 99L;
+        Project project = scrumProject(projectId, 10L);
+        User owner = project.getOwner();
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("X");
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> sprintService.updateSprint(projectId, sprintId, req, owner));
+        verify(sprintRepository, never()).save(any());
+    }
+
+    @Test
+    void updateSprint_endBeforeStart_throwsBadRequest() {
+        long projectId = 1L;
+        long sprintId = 50L;
+        Project project = scrumProject(projectId, 10L);
+        User owner = project.getOwner();
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.INACTIVE);
+        sprint.setProject(project);
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("X");
+        req.setStartDate(LocalDate.of(2026, 4, 10));
+        req.setEndDate(LocalDate.of(2026, 4, 1));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
+
+        assertThrows(BadRequestException.class, () -> sprintService.updateSprint(projectId, sprintId, req, owner));
         verify(sprintRepository, never()).save(any());
     }
 
