@@ -2,6 +2,7 @@ package com.project.projectmanagementapplication.model;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,6 +25,10 @@ public class Project extends AuditableEntity {
 
     private String category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "framework", nullable = false, length = 32)
+    private PROJECT_FRAMEWORK framework = PROJECT_FRAMEWORK.KANBAN;
+
     @ElementCollection
     private List<String> tags = new ArrayList<>();
 
@@ -35,7 +40,12 @@ public class Project extends AuditableEntity {
     private User owner;
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<Issue> issues = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Sprint> sprints = new ArrayList<>();
 
     @ManyToMany
     private List<User> team = new ArrayList<>();

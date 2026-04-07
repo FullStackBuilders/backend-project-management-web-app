@@ -32,8 +32,11 @@ public class IssueDetailResponse {
     private Long projectOwnerId;
     private String projectOwnerName;
 
+    private Long sprintId;
+    private String sprintName;
+
     private List<CommentResponse> comments;
 
-    private String lastEditedByName;
-    private LocalDateTime lastEditedAt;
+    private String lastUpdatedByName;
+    private LocalDateTime lastUpdatedAt;
 }

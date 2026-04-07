@@ -10,24 +10,27 @@ import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
 import com.project.projectmanagementapplication.repository.CommentRepository;
 import com.project.projectmanagementapplication.repository.IssueRepository;
-import com.project.projectmanagementapplication.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional
 public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
+    private final IssueRepository issueRepository;
     private final IssueService issueService;
     private final UserService userService;
 
     @Autowired
-    public CommentServiceImpl(CommentRepository commentRepository, IssueService issueService, UserService userService) {
+    public CommentServiceImpl(CommentRepository commentRepository, IssueRepository issueRepository, IssueService issueService, UserService userService) {
         this.commentRepository = commentRepository;
+        this.issueRepository = issueRepository;
         this.issueService = issueService;
         this.userService = userService;
     }
@@ -46,6 +49,7 @@ public class CommentServiceImpl implements CommentService {
 
         Comment savedComment = commentRepository.save(comment);
         issue.getComments().add(savedComment);
+        touchIssueLastUpdated(issueId, user);
         return Response.<Comment>builder()
                 .status(HttpStatus.CREATED)
                 .statusCode(HttpStatus.CREATED.value())
@@ -135,6 +139,7 @@ public class CommentServiceImpl implements CommentService {
         comment.setIssue(issue);
 
         Comment savedComment = commentRepository.save(comment);
+        touchIssueLastUpdated(issueId, user);
 
         CommentResponse commentResponse = CommentResponse.builder()
                 .id(savedComment.getId())
@@ -156,5 +161,14 @@ public class CommentServiceImpl implements CommentService {
 
 
 
+
+
+    private void touchIssueLastUpdated(Long issueId, User user) {
+        issueRepository.findById(issueId).ifPresent(issue -> {
+            issue.setLastUpdatedBy(user);
+            issue.setLastUpdatedAt(LocalDateTime.now());
+            issueRepository.save(issue);
+        });
+    }
 
 }

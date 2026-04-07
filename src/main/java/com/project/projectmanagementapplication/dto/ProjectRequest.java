@@ -1,10 +1,6 @@
 package com.project.projectmanagementapplication.dto;
 
-import com.project.projectmanagementapplication.model.Chat;
-import com.project.projectmanagementapplication.model.Issue;
-import com.project.projectmanagementapplication.model.User;
 import lombok.Data;
-
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +16,10 @@ public class ProjectRequest {
 
     private String category;
 
-
-
-
+    /**
+     * Optional on create: {@code KANBAN} or {@code SCRUM} (case-insensitive).
+     * When null or blank, defaults to {@code KANBAN}.
+     * Intentionally not applied on PATCH update — framework is immutable after creation.
+     */
+    private String framework;
 }

@@ -3,6 +3,8 @@ package com.project.projectmanagementapplication.service;
 
 import com.project.projectmanagementapplication.dto.ProjectRequest;
 import com.project.projectmanagementapplication.dto.Response;
+import com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK;
+import com.project.projectmanagementapplication.exception.BadRequestException;
 import com.project.projectmanagementapplication.exception.ConflictException;
 import com.project.projectmanagementapplication.exception.ResourceNotFoundException;
 import com.project.projectmanagementapplication.exception.UnauthorizedException;
@@ -42,6 +44,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setCategory(projectRequest.getCategory());
         project.setDescription(projectRequest.getDescription());
         project.setTags(projectRequest.getTags());
+        project.setFramework(resolveFramework(projectRequest.getFramework()));
         project.getTeam().add(user);
         Project savedProject = projectRepository.save(project);
         Chat savedChat = chatService.createChatForProject(savedProject);
@@ -58,7 +61,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public Response<List<Project>> getAllProjectForUser(User user, String category, String tag){
-        List<Project> projects = projectRepository.findByTeamContainingOrOwner(user, user);
+        List<Project> projects = projectRepository.findByTeamContainingOrOwner(user,user);
         if (category != null){
             projects = projects.stream().filter(p -> p.getCategory().equalsIgnoreCase(category))
                        .collect(Collectors.toList());
@@ -115,6 +118,8 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public Response<Project> updateProject(ProjectRequest projectRequest, Long projectId){
         Project project = getProjectById(projectId).getData();
+
+        // Framework (Kanban vs Scrum) is immutable after project creation — ignore projectRequest.framework.
 
         // Apply updates only if values are provided
         if (projectRequest.getName() != null) {
@@ -197,4 +202,17 @@ public class ProjectServiceImpl implements ProjectService {
                 .timestamp(LocalDateTime.now().toString())
                 .data(projects)
                 .build();}
+
+    private static PROJECT_FRAMEWORK resolveFramework(String framework) {
+        if (framework == null || framework.isBlank()) {
+            return PROJECT_FRAMEWORK.KANBAN;
+        }
+        try {
+            return PROJECT_FRAMEWORK.valueOf(framework.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(
+                    "Invalid framework: \"" + framework + "\". Allowed values: KANBAN, SCRUM.");
+        }
+    }
  }
+

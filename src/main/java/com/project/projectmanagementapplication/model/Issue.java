@@ -16,7 +16,7 @@ import java.util.List;
 public class Issue extends AuditableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private String title;
@@ -44,15 +44,21 @@ public class Issue extends AuditableEntity {
     @ManyToOne
     private Project project;
 
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sprint_id")
+    private Sprint sprint;
+
     @ManyToOne
     @JoinColumn(name = "created_by_id")
     private User createdBy;
 
     @ManyToOne
-    @JoinColumn(name = "last_edited_by_id")
-    private User lastEditedBy;
+    @JoinColumn(name = "last_updated_by_id")
+    private User lastUpdatedBy;
 
-    private LocalDateTime lastEditedAt;
+    @Column(name = "last_updated_at")
+    private LocalDateTime lastUpdatedAt;
 
     // Workflow timestamps for Kanban metrics — separate from generic audit fields
     private LocalDateTime taskStartedAt;    // set when task first enters IN_PROGRESS; never overwritten
@@ -61,5 +67,9 @@ public class Issue extends AuditableEntity {
     @JsonIgnore
     @OneToMany(mappedBy = "issue", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comment> comments = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "issue", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<IssueActivity> activities = new ArrayList<>();
 
 }

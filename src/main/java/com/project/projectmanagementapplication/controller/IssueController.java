@@ -1,9 +1,11 @@
 package com.project.projectmanagementapplication.controller;
 
+import com.project.projectmanagementapplication.dto.IssueTimelineData;
 import com.project.projectmanagementapplication.dto.IssueCountsResponse;
 import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
 import com.project.projectmanagementapplication.dto.IssueResponse;
+import com.project.projectmanagementapplication.dto.IssueSprintAssignmentRequest;
 import com.project.projectmanagementapplication.dto.Response;
 import com.project.projectmanagementapplication.model.Issue;
 import com.project.projectmanagementapplication.model.User;
@@ -42,6 +44,15 @@ public class IssueController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/project/{projectId}/backlog")
+    public ResponseEntity<Response<List<IssueResponse>>> getBacklogIssues(@PathVariable Long projectId) throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
+        Response<List<IssueResponse>> response = issueService.getBacklogIssues(projectId, user);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{projectId}")
     public ResponseEntity<Response<IssueResponse>> createIssue(@PathVariable Long projectId, @RequestBody IssueRequest issueRequest) throws Exception {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -72,6 +83,16 @@ public class IssueController {
         return ResponseEntity.status(response.getStatus()).body(response);
     }
 
+    @PatchMapping("/{issueId}/sprint")
+    public ResponseEntity<Response<IssueResponse>> assignIssueSprint(
+            @PathVariable Long issueId,
+            @RequestBody IssueSprintAssignmentRequest request) throws Exception {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User user = userService.findByUsername(username);
+        Response<IssueResponse> response = issueService.assignIssueSprint(issueId, request, user.getId());
+        return ResponseEntity.status(response.getStatus()).body(response);
+    }
 
     @PutMapping("/{issueId}/assignee/{userId}")
     public ResponseEntity<Response<IssueResponse>> addUserToIssue(@PathVariable Long issueId,
@@ -105,6 +126,18 @@ public class IssueController {
     @GetMapping("/{issueId}/detail")
     public ResponseEntity<Response<IssueDetailResponse>> getIssueDetail(@PathVariable Long issueId) throws Exception {
         Response<IssueDetailResponse> response = issueService.getIssueDetail(issueId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Merged activity + comments, newest first. Client filters {@code kind} for All | History | Comments tabs.
+     */
+    @GetMapping("/{issueId}/timeline")
+    public ResponseEntity<Response<IssueTimelineData>> getIssueTimeline(
+            @PathVariable Long issueId,
+            @RequestParam(required = false) Integer limit) throws Exception {
+        int lim = limit == null ? 200 : limit;
+        Response<IssueTimelineData> response = issueService.getIssueTimeline(issueId, lim);
         return ResponseEntity.ok(response);
     }
 

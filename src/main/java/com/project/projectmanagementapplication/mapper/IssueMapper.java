@@ -35,9 +35,11 @@ public class IssueMapper {
                 .assignedByName(issue.getAssignedBy() != null ? fullName(issue.getAssignedBy()) : null)
                 .projectId(issue.getProject() != null ? issue.getProject().getId() : null)
                 .projectOwnerId(project.getOwner().getId())
+                .sprintId(issue.getSprint() != null ? issue.getSprint().getId() : null)
+                .sprintName(issue.getSprint() != null ? issue.getSprint().getName() : null)
                 .commentCount(issue.getComments() != null ? issue.getComments().size() : 0)
-                .lastEditedByName(issue.getLastEditedBy() != null ? fullName(issue.getLastEditedBy()) : null)
-                .lastEditedAt(issue.getLastEditedAt())
+                .lastUpdatedByName(issue.getLastUpdatedBy() != null ? fullName(issue.getLastUpdatedBy()) : null)
+                .lastUpdatedAt(issue.getLastUpdatedAt())
                 .taskCreatedAt(issue.getCreatedAt())
                 .taskStartedAt(issue.getTaskStartedAt())
                 .taskCompletedAt(issue.getTaskCompletedAt())
@@ -65,11 +67,13 @@ public class IssueMapper {
                 .projectName(project.getName())
                 .projectOwnerId(project.getOwner().getId())
                 .projectOwnerName(fullName(project.getOwner()))
+                .sprintId(issue.getSprint() != null ? issue.getSprint().getId() : null)
+                .sprintName(issue.getSprint() != null ? issue.getSprint().getName() : null)
                 .comments(issue.getComments() != null
                         ? issue.getComments().stream().map(commentMapper::toCommentResponse).toList()
                         : List.of())
-                .lastEditedByName(issue.getLastEditedBy() != null ? fullName(issue.getLastEditedBy()) : null)
-                .lastEditedAt(issue.getLastEditedAt())
+                .lastUpdatedByName(issue.getLastUpdatedBy() != null ? fullName(issue.getLastUpdatedBy()) : null)
+                .lastUpdatedAt(issue.getLastUpdatedAt())
                 .build();
     }
 

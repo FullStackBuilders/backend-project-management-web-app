@@ -1,5 +1,7 @@
 package com.project.projectmanagementapplication.service;
 
+import com.project.projectmanagementapplication.dto.IssueSprintAssignmentRequest;
+import com.project.projectmanagementapplication.dto.IssueTimelineData;
 import com.project.projectmanagementapplication.dto.IssueCountsResponse;
 import com.project.projectmanagementapplication.dto.IssueDetailResponse;
 import com.project.projectmanagementapplication.dto.IssueRequest;
@@ -9,7 +11,6 @@ import com.project.projectmanagementapplication.model.Issue;
 import com.project.projectmanagementapplication.model.User;
 
 import java.util.List;
-import java.util.Optional;
 
 
 public interface IssueService {
@@ -17,7 +18,11 @@ public interface IssueService {
 
     Response<List<IssueResponse>>  getIssueByProjectId(Long projectId) throws Exception;
 
+    Response<List<IssueResponse>> getBacklogIssues(Long projectId, User caller) throws Exception;
+
     Response<IssueResponse> createIssue(Long projectId,IssueRequest issue, User user) throws Exception;
+
+    Response<IssueResponse> assignIssueSprint(Long issueId, IssueSprintAssignmentRequest request, Long userId) throws Exception;
 
     Response<Long>  deleteIssue(Long issueId, Long userId) throws Exception;
 
@@ -32,4 +37,7 @@ public interface IssueService {
     Response<IssueDetailResponse> getIssueDetail(Long issueId) throws Exception;
 
     Response<IssueCountsResponse> getIssueCountsForUser(User user) throws Exception;
+
+    Response<IssueTimelineData> getIssueTimeline(Long issueId, int limit) throws Exception;
 }
+

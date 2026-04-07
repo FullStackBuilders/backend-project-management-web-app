@@ -34,10 +34,14 @@ public class IssueResponse {
     private Long projectId;
     private Long projectOwnerId;
 
+    /** Null when the issue is in the product backlog (no sprint). */
+    private Long sprintId;
+    private String sprintName;
+
     private Integer commentCount;
 
-    private String lastEditedByName;
-    private LocalDateTime lastEditedAt;
+    private String lastUpdatedByName;
+    private LocalDateTime lastUpdatedAt;
 
     // Workflow timestamps for Kanban metrics
     private LocalDateTime taskCreatedAt;    // sourced from AuditableEntity.createdAt — for Lead Time

@@ -30,6 +30,21 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(errorResponse.getStatus()).body(errorResponse);
     }
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .status(HttpStatus.BAD_REQUEST)
+                .error("Bad Request")
+                .message(ex.getMessage())
+                .path(path)
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+
+        return ResponseEntity.status(errorResponse.getStatus()).body(errorResponse);
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, WebRequest request){
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();

@@ -13,7 +13,13 @@ import java.util.List;
 
 public interface IssueRepository extends JpaRepository<Issue, Long> {
 
+    long countBySprint_Id(Long sprintId);
+
+    List<Issue> findBySprint_Id(Long sprintId);
+
     List<Issue> findByProjectId(Long projectId);
+
+    List<Issue> findByProjectIdAndSprintIsNull(Long projectId);
 
     long countByAssigneeAndProjectIn(User assignee, List<Project> projects);
 
