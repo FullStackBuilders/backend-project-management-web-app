@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Service
 @Transactional
@@ -33,16 +34,19 @@ public class SprintServiceImpl implements SprintService {
     private final IssueRepository issueRepository;
     private final SprintMapper sprintMapper;
     private final ProjectService projectService;
+    private final ProjectAuthorizationService projectAuthorizationService;
 
     public SprintServiceImpl(
             SprintRepository sprintRepository,
             IssueRepository issueRepository,
             SprintMapper sprintMapper,
-            ProjectService projectService) {
+            ProjectService projectService,
+            ProjectAuthorizationService projectAuthorizationService) {
         this.sprintRepository = sprintRepository;
         this.issueRepository = issueRepository;
         this.sprintMapper = sprintMapper;
         this.projectService = projectService;
+        this.projectAuthorizationService = projectAuthorizationService;
     }
 
     @Override
@@ -52,9 +56,13 @@ public class SprintServiceImpl implements SprintService {
         assertScrumProject(project);
         assertProjectMember(project, caller);
 
-        List<SprintResponse> list = sprintRepository.findByProject_IdOrderByStartDateDesc(projectId).stream()
-                .map(sprintMapper::toResponse)
-                .toList();
+        Stream<Sprint> stream =
+                sprintRepository.findByProject_IdOrderByStartDateDesc(projectId).stream();
+        if (projectAuthorizationService.usesMemberSprintListFilter(projectId, caller)) {
+            stream = stream.filter(
+                    s -> s.getStatus() == SPRINT_STATUS.ACTIVE || s.getStatus() == SPRINT_STATUS.COMPLETED);
+        }
+        List<SprintResponse> list = stream.map(sprintMapper::toResponse).toList();
 
         return Response.<List<SprintResponse>>builder()
                 .data(list)
@@ -69,7 +77,7 @@ public class SprintServiceImpl implements SprintService {
     public Response<SprintResponse> createSprint(Long projectId, SprintCreateRequest request, User owner) {
         Project project = loadProject(projectId);
         assertScrumProject(project);
-        assertProjectOwner(project, owner.getId());
+        assertCanManageSprints(project, owner);
 
         if (request.getName() == null || request.getName().isBlank()) {
             throw new BadRequestException("Sprint name is required");
@@ -106,7 +114,7 @@ public class SprintServiceImpl implements SprintService {
             Long projectId, Long sprintId, SprintCreateRequest request, User owner) {
         Project project = loadProject(projectId);
         assertScrumProject(project);
-        assertProjectOwner(project, owner.getId());
+        assertCanManageSprints(project, owner);
 
         Sprint sprint = sprintRepository
                 .findByIdAndProject_Id(sprintId, projectId)
@@ -148,7 +156,7 @@ public class SprintServiceImpl implements SprintService {
             Long projectId, Long sprintId, User owner, SprintStartRequest request) {
         Project project = loadProject(projectId);
         assertScrumProject(project);
-        assertProjectOwner(project, owner.getId());
+        assertCanManageSprints(project, owner);
 
         Sprint sprint = sprintRepository
                 .findByIdAndProject_Id(sprintId, projectId)
@@ -200,7 +208,7 @@ public class SprintServiceImpl implements SprintService {
     public Response<SprintResponse> completeSprint(Long projectId, Long sprintId, User owner) {
         Project project = loadProject(projectId);
         assertScrumProject(project);
-        assertProjectOwner(project, owner.getId());
+        assertCanManageSprints(project, owner);
 
         Sprint sprint = sprintRepository
                 .findByIdAndProject_Id(sprintId, projectId)
@@ -270,9 +278,10 @@ public class SprintServiceImpl implements SprintService {
         }
     }
 
-    private void assertProjectOwner(Project project, Long userId) {
-        if (!project.getOwner().getId().equals(userId)) {
-            throw new UnauthorizedException("Only the project owner can perform this action");
+    private void assertCanManageSprints(Project project, User user) {
+        if (!projectAuthorizationService.canManageSprints(project, user)) {
+            throw new UnauthorizedException(
+                    "Only the project owner, admin, or Scrum Master can manage sprints for this project");
         }
     }
 

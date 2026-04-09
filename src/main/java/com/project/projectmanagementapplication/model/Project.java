@@ -50,6 +50,18 @@ public class Project extends AuditableEntity {
     @ManyToMany
     private List<User> team = new ArrayList<>();
 
+    @Transient
+    private String myRole;
 
+    @Transient
+    private Boolean canEditProject;
 
+    @Transient
+    private Boolean canDeleteProject;
+
+    @Transient
+    private Boolean canInviteMembers;
+
+    @Transient
+    private Boolean canManageAllTasks;
 }

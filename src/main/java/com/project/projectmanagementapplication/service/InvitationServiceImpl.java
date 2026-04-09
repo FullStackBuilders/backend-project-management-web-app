@@ -38,12 +38,20 @@ public class InvitationServiceImpl implements InvitationService {
 
     private final ProjectService projectService;
 
+    private final ProjectAuthorizationService projectAuthorizationService;
+
     @Autowired
-    public InvitationServiceImpl(InvitationRepository invitationRepository, EmailService emailService, UserService userService, ProjectService projectService) {
+    public InvitationServiceImpl(
+            InvitationRepository invitationRepository,
+            EmailService emailService,
+            UserService userService,
+            ProjectService projectService,
+            ProjectAuthorizationService projectAuthorizationService) {
         this.invitationRepository = invitationRepository;
         this.emailService = emailService;
         this.userService = userService;
         this.projectService = projectService;
+        this.projectAuthorizationService = projectAuthorizationService;
     }
 
     private String generateInvitationToken(String email, Long projectId) {
@@ -88,8 +96,8 @@ public class InvitationServiceImpl implements InvitationService {
         Response<Project> projectResponse = projectService.getProjectById(projectId);
         Project project = projectResponse.getData();
 
-        if (!inviter.getId().equals(project.getOwner().getId())) {
-            throw new UnauthorizedException("Only project owner can send invitations");
+        if (!projectAuthorizationService.canInviteToProject(projectId, inviter)) {
+            throw new UnauthorizedException("Only project owner or admin can send invitations");
         }
 
         boolean isAlreadyMember = project.getTeam().stream()

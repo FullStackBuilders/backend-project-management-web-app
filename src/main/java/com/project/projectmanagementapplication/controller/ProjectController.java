@@ -1,15 +1,17 @@
 package com.project.projectmanagementapplication.controller;
 
 
-import com.project.projectmanagementapplication.dto.EmailInviteRequest;
+import com.project.projectmanagementapplication.dto.ProjectMembershipMeResponse;
 import com.project.projectmanagementapplication.dto.ProjectRequest;
 import com.project.projectmanagementapplication.dto.Response;
+import com.project.projectmanagementapplication.dto.UpdateProjectMemberRoleRequest;
+import com.project.projectmanagementapplication.exception.BadRequestException;
 import com.project.projectmanagementapplication.model.Chat;
-import com.project.projectmanagementapplication.model.Invitation;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
 import com.project.projectmanagementapplication.service.ChatService;
 import com.project.projectmanagementapplication.service.InvitationService;
+import com.project.projectmanagementapplication.service.ProjectMembershipService;
 import com.project.projectmanagementapplication.service.ProjectService;
 import com.project.projectmanagementapplication.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,15 +30,20 @@ public class ProjectController {
     private final UserService userService;
     private final InvitationService invitationService;
 
-
-
+    private final ProjectMembershipService projectMembershipService;
 
     @Autowired
-    public ProjectController(ProjectService projectService, ChatService chatService, UserService userService, InvitationService invitationService) {
+    public ProjectController(
+            ProjectService projectService,
+            ChatService chatService,
+            UserService userService,
+            InvitationService invitationService,
+            ProjectMembershipService projectMembershipService) {
         this.projectService = projectService;
         this.chatService = chatService;
         this.userService = userService;
         this.invitationService = invitationService;
+        this.projectMembershipService = projectMembershipService;
     }
 
      @GetMapping
@@ -54,8 +61,9 @@ public class ProjectController {
 
     @GetMapping("/{projectId}")
     public ResponseEntity<Project> getProjectById(@PathVariable Long projectId) {
-
-        Response<Project> response = projectService.getProjectById(projectId);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userService.findByUsername(authentication.getName());
+        Response<Project> response = projectService.getProjectByIdForUser(projectId, user);
         return ResponseEntity.status(response.getStatus()).body(response.getData());
 
 
@@ -75,8 +83,37 @@ public class ProjectController {
     public ResponseEntity<Project> updateProject(@PathVariable Long projectId,
                                                         @RequestBody ProjectRequest projectRequest)  {
 
-        Response<Project> response = projectService.updateProject(projectRequest, projectId);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User currentUser = userService.findByUsername(username);
+        Response<Project> response = projectService.updateProject(projectRequest, projectId, currentUser);
         return ResponseEntity.ok(response.getData());
+    }
+
+    @GetMapping("/{projectId}/membership/me")
+    public ResponseEntity<ProjectMembershipMeResponse> getMyProjectMembership(@PathVariable Long projectId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userService.findByUsername(authentication.getName());
+        projectService.getProjectById(projectId);
+        var role = projectMembershipService.getRole(projectId, user.getId());
+        return ResponseEntity.ok(
+                ProjectMembershipMeResponse.builder().role(role.name()).build());
+    }
+
+    @PatchMapping("/{projectId}/members/m/{memberUserId}/role")
+    public ResponseEntity<ProjectMembershipMeResponse> updateProjectMemberRole(
+            @PathVariable Long projectId,
+            @PathVariable Long memberUserId,
+            @RequestBody UpdateProjectMemberRoleRequest body) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User caller = userService.findByUsername(authentication.getName());
+        Project project = projectService.getProjectById(projectId).getData();
+        if (body == null || body.getRole() == null) {
+            throw new BadRequestException("role is required");
+        }
+        var updated =
+                projectMembershipService.updateMemberRole(project, caller, memberUserId, body.getRole());
+        return ResponseEntity.ok(ProjectMembershipMeResponse.builder().role(updated.name()).build());
     }
 
     @DeleteMapping("/{projectId}")

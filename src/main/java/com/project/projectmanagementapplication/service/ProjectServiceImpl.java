@@ -4,6 +4,7 @@ package com.project.projectmanagementapplication.service;
 import com.project.projectmanagementapplication.dto.ProjectRequest;
 import com.project.projectmanagementapplication.dto.Response;
 import com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK;
+import com.project.projectmanagementapplication.enums.PROJECT_MEMBER_ROLE;
 import com.project.projectmanagementapplication.exception.BadRequestException;
 import com.project.projectmanagementapplication.exception.ConflictException;
 import com.project.projectmanagementapplication.exception.ResourceNotFoundException;
@@ -27,12 +28,21 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final UserService userService;
     private final ChatService chatService;
+    private final ProjectMembershipService projectMembershipService;
+    private final ProjectAuthorizationService projectAuthorizationService;
 
     @Autowired
-    public ProjectServiceImpl(ProjectRepository projectRepository, UserService userService, @Lazy ChatService chatService) {
+    public ProjectServiceImpl(
+            ProjectRepository projectRepository,
+            UserService userService,
+            @Lazy ChatService chatService,
+            ProjectMembershipService projectMembershipService,
+            ProjectAuthorizationService projectAuthorizationService) {
         this.projectRepository = projectRepository;
         this.userService = userService;
         this.chatService = chatService;
+        this.projectMembershipService = projectMembershipService;
+        this.projectAuthorizationService = projectAuthorizationService;
     }
 
 
@@ -47,6 +57,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setFramework(resolveFramework(projectRequest.getFramework()));
         project.getTeam().add(user);
         Project savedProject = projectRepository.save(project);
+        projectMembershipService.createOwnerMembership(savedProject, user);
         Chat savedChat = chatService.createChatForProject(savedProject);
         savedProject.setChat(savedChat);
 
@@ -71,12 +82,13 @@ public class ProjectServiceImpl implements ProjectService {
                        .collect(Collectors.toList());
 
         }
+        List<Project> enriched = projects.stream().map(p -> enrichProjectAccess(p, user)).collect(Collectors.toList());
         return Response.<List<Project>>builder()
                 .message("Projects retrieved successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())
-                .data(projects)
+                .data(enriched)
                 .build();
     }
 
@@ -94,13 +106,26 @@ public class ProjectServiceImpl implements ProjectService {
 
     }
 
+    @Override
+    public Response<Project> getProjectByIdForUser(Long projectId, User user) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + projectId));
+        return Response.<Project>builder()
+                .message("Project retrieved successfully")
+                .status(HttpStatus.OK)
+                .statusCode(HttpStatus.OK.value())
+                .timestamp(LocalDateTime.now().toString())
+                .data(enrichProjectAccess(project, user))
+                .build();
+    }
+
         @Override
         public Response<Void> deleteProject(Long projectId, Long userId){
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() ->new ResourceNotFoundException("Project not found with ID: " + projectId));
 
-
-            if (!project.getOwner().getId().equals(userId)) {
+            User actor = userService.findByUserId(userId);
+            if (!projectAuthorizationService.canManageProjectSettings(projectId, actor)) {
                 throw new UnauthorizedException("You are not authorized to delete this project");
             }
 
@@ -116,8 +141,12 @@ public class ProjectServiceImpl implements ProjectService {
 
 
     @Override
-    public Response<Project> updateProject(ProjectRequest projectRequest, Long projectId){
+    public Response<Project> updateProject(ProjectRequest projectRequest, Long projectId, User currentUser){
         Project project = getProjectById(projectId).getData();
+
+        if (!projectAuthorizationService.canManageProjectSettings(projectId, currentUser)) {
+            throw new UnauthorizedException("You are not authorized to update this project");
+        }
 
         // Framework (Kanban vs Scrum) is immutable after project creation — ignore projectRequest.framework.
 
@@ -159,6 +188,7 @@ public class ProjectServiceImpl implements ProjectService {
             project.getChat().getUsers().add(user);
             project.getTeam().add(user);
             projectRepository.save(project);
+            projectMembershipService.createMemberMembership(project, user);
             userService.updateUserProjectSize(user, 1);
             return Response.<Void>builder()
                     .message("User added to project successfully")
@@ -181,6 +211,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.getChat().getUsers().remove(user);
         project.getTeam().remove(user);
         projectRepository.save(project);
+        projectMembershipService.removeMembership(projectId, userId);
         userService.updateUserProjectSize(user, -1);
         return Response.<Void>builder()
                 .message("User removed from project successfully")
@@ -213,6 +244,20 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BadRequestException(
                     "Invalid framework: \"" + framework + "\". Allowed values: KANBAN, SCRUM.");
         }
+    }
+
+    private Project enrichProjectAccess(Project project, User user) {
+        PROJECT_MEMBER_ROLE role = projectMembershipService.getRole(project.getId(), user.getId());
+        boolean canManageProject = projectAuthorizationService.canManageProjectSettings(project.getId(), user);
+        boolean canInvite = projectAuthorizationService.canInviteToProject(project.getId(), user);
+        boolean canManageTasks = projectAuthorizationService.canAdministerAllTasks(project.getId(), user);
+
+        project.setMyRole(role.name());
+        project.setCanEditProject(canManageProject);
+        project.setCanDeleteProject(canManageProject);
+        project.setCanInviteMembers(canInvite);
+        project.setCanManageAllTasks(canManageTasks);
+        return project;
     }
  }
 

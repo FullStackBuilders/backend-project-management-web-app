@@ -56,6 +56,7 @@ public class IssueServiceImpl implements IssueService {
     private final IssueActivityRepository issueActivityRepository;
     private final CommentRepository commentRepository;
     private final SprintRepository sprintRepository;
+    private final ProjectAuthorizationService projectAuthorizationService;
 
     @Autowired
     public IssueServiceImpl(
@@ -66,7 +67,8 @@ public class IssueServiceImpl implements IssueService {
             IssueActivityRecorder issueActivityRecorder,
             IssueActivityRepository issueActivityRepository,
             CommentRepository commentRepository,
-            SprintRepository sprintRepository) {
+            SprintRepository sprintRepository,
+            ProjectAuthorizationService projectAuthorizationService) {
         this.issueRepository = issueRepository;
         this.issueMapper = issueMapper;
         this.projectService = projectService;
@@ -75,6 +77,7 @@ public class IssueServiceImpl implements IssueService {
         this.issueActivityRepository = issueActivityRepository;
         this.commentRepository = commentRepository;
         this.sprintRepository = sprintRepository;
+        this.projectAuthorizationService = projectAuthorizationService;
     }
 
     @Override
@@ -200,11 +203,17 @@ public class IssueServiceImpl implements IssueService {
             throw new BadRequestException("Sprint assignment is only available for Scrum projects");
         }
 
-        boolean canAssign = project.getOwner().getId().equals(userId)
-                || issue.getCreatedBy().getId().equals(userId)
-                || (issue.getAssignee() != null && issue.getAssignee().getId().equals(userId));
+        User editor = userService.findByUserId(userId);
+        boolean elevated =
+                projectAuthorizationService.canManageSprints(project, editor)
+                        || projectAuthorizationService.canAdministerAllTasks(project.getId(), editor);
+        boolean canAssign =
+                elevated
+                        || issue.getCreatedBy().getId().equals(userId)
+                        || (issue.getAssignee() != null && issue.getAssignee().getId().equals(userId));
         if (!canAssign) {
-            throw new UnauthorizedException("Only the project owner, task creator, or assignee can move this task");
+            throw new UnauthorizedException(
+                    "Only an elevated role (owner, admin, or Scrum Master), the task creator, or the assignee can move this task");
         }
 
         String oldLabel = IssueActivityValueFormats.sprintDisplay(issue.getSprint());
@@ -219,12 +228,15 @@ public class IssueServiceImpl implements IssueService {
             if (sprint.getStatus() == SPRINT_STATUS.COMPLETED) {
                 throw new BadRequestException("Cannot assign issues to a completed sprint");
             }
+            if (projectAuthorizationService.mustRestrictSprintAssignmentToActive(project.getId(), editor)
+                    && sprint.getStatus() != SPRINT_STATUS.ACTIVE) {
+                throw new BadRequestException("Team members may only assign tasks to the active sprint");
+            }
             issue.setSprint(sprint);
         }
 
         resetIssueToTodoClearingWorkflow(issue);
 
-        User editor = userService.findByUserId(userId);
         LocalDateTime at = LocalDateTime.now();
         issue.setLastUpdatedBy(editor);
         issue.setLastUpdatedAt(at);
@@ -258,10 +270,12 @@ public class IssueServiceImpl implements IssueService {
         Issue issue = getIssueById(issueId);
         assertIssueNotInCompletedSprint(issue);
 
+        User editor = userService.findByUserId(userId);
+        boolean elevated = projectAuthorizationService.canAdministerAllTasks(issue.getProject().getId(), editor);
         boolean isCreator = issue.getCreatedBy().getId().equals(userId);
-        boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
-        if (!isCreator && !isProjectOwner) {
-            throw new UnauthorizedException("Only the creator or project owner can delete this issue.");
+        if (!elevated && !isCreator) {
+            throw new UnauthorizedException(
+                    "Only the creator or a project owner/admin can delete this issue.");
         }
 
         issueRepository.deleteById(issue.getId());
@@ -280,13 +294,15 @@ public class IssueServiceImpl implements IssueService {
         Issue issue = getIssueById(issueId);
         assertIssueNotInCompletedSprint(issue);
 
-        boolean isCreator = issue.getCreatedBy().getId().equals(userId);
-        boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
-        if (!isCreator && !isProjectOwner) {
+        User editor = userService.findByUserId(userId);
+        Project project = issue.getProject();
+        boolean elevated = projectAuthorizationService.canAdministerAllTasks(project.getId(), editor);
+        // MEMBER assignee may change status only (updateIssueStatus); full field edit is creator or elevated.
+        boolean memberMayEditFullFields = issue.getCreatedBy().getId().equals(userId);
+        if (!elevated && !memberMayEditFullFields) {
             throw new UnauthorizedException("You are not authorized to update this issue");
         }
 
-        Project project = issue.getProject();
 
         if (issueRequest.getPriority() != null) {
             try {
@@ -318,7 +334,6 @@ public class IssueServiceImpl implements IssueService {
 
         issue.setDueDate(issueRequest.getDueDate());
 
-        User editor = userService.findByUserId(userId);
         LocalDateTime at = LocalDateTime.now();
         issue.setLastUpdatedBy(editor);
         issue.setLastUpdatedAt(at);
@@ -388,9 +403,10 @@ public class IssueServiceImpl implements IssueService {
         assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
+        User callerUser = userService.findByUserId(callerId);
+        boolean elevated = projectAuthorizationService.canAdministerAllTasks(project.getId(), callerUser);
         boolean isCreator = issue.getCreatedBy().getId().equals(callerId);
-        boolean isProjectOwner = project.getOwner().getId().equals(callerId);
-        if (!isCreator && !isProjectOwner) {
+        if (!elevated && !isCreator) {
             throw new UnauthorizedException("Only the issue creator or project owner can assign this issue.");
         }
 
@@ -406,20 +422,19 @@ public class IssueServiceImpl implements IssueService {
         }
 
         User assignee = userService.findByUserId(assigneeUserId);
-        User caller = userService.findByUserId(callerId);
 
         String oldAssigneeName = IssueActivityValueFormats.assigneeDisplay(issue.getAssignee());
         String newAssigneeName = IssueActivityValueFormats.assigneeDisplay(assignee);
 
         issue.setAssignee(assignee);
-        issue.setAssignedBy(caller);
+        issue.setAssignedBy(callerUser);
         LocalDateTime at = LocalDateTime.now();
-        issue.setLastUpdatedBy(caller);
+        issue.setLastUpdatedBy(callerUser);
         issue.setLastUpdatedAt(at);
 
         Issue updatedIssue = issueRepository.save(issue);
         issueActivityRecorder.recordSingleFieldUpdate(
-                updatedIssue, caller, IssueTaskFieldNames.ASSIGNEE, oldAssigneeName, newAssigneeName, at);
+                updatedIssue, callerUser, IssueTaskFieldNames.ASSIGNEE, oldAssigneeName, newAssigneeName, at);
 
         IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
         return Response.<IssueResponse>builder()
@@ -437,9 +452,10 @@ public class IssueServiceImpl implements IssueService {
         assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
+        User callerUser = userService.findByUserId(callerId);
+        boolean elevated = projectAuthorizationService.canAdministerAllTasks(project.getId(), callerUser);
         boolean isCreator = issue.getCreatedBy().getId().equals(callerId);
-        boolean isProjectOwner = project.getOwner().getId().equals(callerId);
-        if (!isCreator && !isProjectOwner) {
+        if (!elevated && !isCreator) {
             throw new UnauthorizedException("Only the issue creator or project owner can remove the assignee.");
         }
 
@@ -454,18 +470,17 @@ public class IssueServiceImpl implements IssueService {
                     .build();
         }
 
-        User caller = userService.findByUserId(callerId);
         String oldAssigneeName = IssueActivityValueFormats.assigneeDisplay(issue.getAssignee());
 
         issue.setAssignee(null);
-        issue.setAssignedBy(caller);
+        issue.setAssignedBy(callerUser);
         LocalDateTime at = LocalDateTime.now();
-        issue.setLastUpdatedBy(caller);
+        issue.setLastUpdatedBy(callerUser);
         issue.setLastUpdatedAt(at);
 
         Issue updatedIssue = issueRepository.save(issue);
         issueActivityRecorder.recordSingleFieldUpdate(
-                updatedIssue, caller, IssueTaskFieldNames.ASSIGNEE, oldAssigneeName, "Unassigned", at);
+                updatedIssue, callerUser, IssueTaskFieldNames.ASSIGNEE, oldAssigneeName, "Unassigned", at);
 
         IssueResponse issueResponse = issueMapper.toIssueResponse(updatedIssue, project);
         return Response.<IssueResponse>builder()
@@ -485,11 +500,12 @@ public class IssueServiceImpl implements IssueService {
 
         boolean canUpdateStatus = false;
 
+        User editor = userService.findByUserId(userId);
         if (issue.getAssignee() != null && issue.getAssignee().getId().equals(userId)) {
             canUpdateStatus = true;
         } else if (issue.getCreatedBy().getId().equals(userId)) {
             canUpdateStatus = true;
-        } else if (project.getOwner().getId().equals(userId)) {
+        } else if (projectAuthorizationService.canActAsProjectAdminForIssue(editor, project)) {
             canUpdateStatus = true;
         }
 
@@ -543,7 +559,6 @@ public class IssueServiceImpl implements IssueService {
             throw new BadRequestException("Invalid status: " + status);
         }
 
-        User editor = userService.findByUserId(userId);
         LocalDateTime at = LocalDateTime.now();
         issue.setLastUpdatedBy(editor);
         issue.setLastUpdatedAt(at);

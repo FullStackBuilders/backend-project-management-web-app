@@ -20,6 +20,7 @@ import com.project.projectmanagementapplication.repository.CommentRepository;
 import com.project.projectmanagementapplication.repository.IssueActivityRepository;
 import com.project.projectmanagementapplication.repository.IssueRepository;
 import com.project.projectmanagementapplication.repository.SprintRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,6 +37,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,6 +69,39 @@ class IssueServiceImplTest {
 
     @Mock
     private SprintRepository sprintRepository;
+
+    @Mock
+    private ProjectAuthorizationService projectAuthorizationService;
+
+    @BeforeEach
+    void stubProjectAuth() {
+        lenient()
+                .when(projectAuthorizationService.canManageSprints(any(Project.class), any(User.class)))
+                .thenAnswer(
+                        inv -> {
+                            Project p = inv.getArgument(0);
+                            User u = inv.getArgument(1);
+                            return p.getOwner() != null && p.getOwner().getId().equals(u.getId());
+                        });
+        lenient()
+                .when(projectAuthorizationService.canAdministerAllTasks(any(Long.class), any(User.class)))
+                .thenReturn(false);
+        lenient()
+                .when(
+                        projectAuthorizationService.mustRestrictSprintAssignmentToActive(
+                                any(Long.class), any(User.class)))
+                .thenReturn(false);
+        lenient()
+                .when(
+                        projectAuthorizationService.canActAsProjectAdminForIssue(
+                                any(User.class), any(Project.class)))
+                .thenAnswer(
+                        inv -> {
+                            User u = inv.getArgument(0);
+                            Project p = inv.getArgument(1);
+                            return p.getOwner() != null && p.getOwner().getId().equals(u.getId());
+                        });
+    }
 
     @Test
     void updateIssueStatus_setsLastUpdatedByAndLastUpdatedAt() throws Exception {
@@ -608,5 +643,86 @@ class IssueServiceImplTest {
 
         assertThrows(BadRequestException.class, () -> issueService.deleteIssue(issueId, owner.getId()));
         verify(issueRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void assignIssueSprint_memberCannotAssignToInactiveSprint() {
+        Long issueId = 7L;
+        Long memberId = 5L;
+        Long ownerId = 1L;
+        Long sprintId = 50L;
+
+        User owner = new User();
+        owner.setId(ownerId);
+        User member = new User();
+        member.setId(memberId);
+
+        Project project = new Project();
+        project.setId(3L);
+        project.setFramework(PROJECT_FRAMEWORK.SCRUM);
+        project.setOwner(owner);
+
+        Sprint sprint = new Sprint();
+        sprint.setId(sprintId);
+        sprint.setStatus(SPRINT_STATUS.INACTIVE);
+        sprint.setProject(project);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setProject(project);
+        issue.setCreatedBy(member);
+        issue.setAssignee(null);
+
+        IssueSprintAssignmentRequest req = new IssueSprintAssignmentRequest();
+        req.setSprintId(sprintId);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+        when(sprintRepository.findByIdAndProject_Id(sprintId, project.getId())).thenReturn(Optional.of(sprint));
+        when(userService.findByUserId(memberId)).thenReturn(member);
+        when(projectAuthorizationService.canManageSprints(project, member)).thenReturn(false);
+        when(projectAuthorizationService.canAdministerAllTasks(project.getId(), member)).thenReturn(false);
+        when(projectAuthorizationService.mustRestrictSprintAssignmentToActive(project.getId(), member))
+                .thenReturn(true);
+
+        assertThrows(
+                BadRequestException.class, () -> issueService.assignIssueSprint(issueId, req, memberId));
+        verify(issueRepository, never()).save(any());
+    }
+
+    @Test
+    void updateIssue_assigneeOnly_throwsUnauthorized() throws Exception {
+        Long issueId = 10L;
+        Long assigneeId = 2L;
+        Long creatorId = 50L;
+
+        User assignee = new User();
+        assignee.setId(assigneeId);
+        User creator = new User();
+        creator.setId(creatorId);
+        User owner = new User();
+        owner.setId(100L);
+        Project project = new Project();
+        project.setId(1L);
+        project.setOwner(owner);
+
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setTitle("Old");
+        issue.setProject(project);
+        issue.setCreatedBy(creator);
+        issue.setAssignee(assignee);
+
+        IssueRequest req = new IssueRequest();
+        req.setTitle("New title");
+        req.setDescription("Desc");
+        req.setPriority(ISSUE_PRIORITY.LOW.toString());
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+        when(userService.findByUserId(assigneeId)).thenReturn(assignee);
+
+        assertThrows(
+                UnauthorizedException.class,
+                () -> issueService.updateIssue(issueId, req, assigneeId));
+        verify(issueRepository, never()).save(any());
     }
 }

@@ -30,5 +30,6 @@ public class User extends AuditableEntity {
     @OneToMany(mappedBy = "assignee", cascade = CascadeType.ALL)
     private List<Issue> assignedIssues = new ArrayList<>();
 
+    /** Projects this user is on; goes up/down only when they are added or removed from a team—not when they create one (owners often stay 0). */
     private int projectSize;
 }

@@ -17,6 +17,7 @@ import com.project.projectmanagementapplication.model.Sprint;
 import com.project.projectmanagementapplication.model.User;
 import com.project.projectmanagementapplication.repository.IssueRepository;
 import com.project.projectmanagementapplication.repository.SprintRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +51,24 @@ class SprintServiceImplTest {
 
     @Mock
     private ProjectService projectService;
+
+    @Mock
+    private ProjectAuthorizationService projectAuthorizationService;
+
+    @BeforeEach
+    void stubProjectAuth() {
+        lenient()
+                .when(projectAuthorizationService.canManageSprints(any(Project.class), any(User.class)))
+                .thenAnswer(
+                        inv -> {
+                            Project p = inv.getArgument(0);
+                            User u = inv.getArgument(1);
+                            return p.getOwner() != null && p.getOwner().getId().equals(u.getId());
+                        });
+        lenient()
+                .when(projectAuthorizationService.usesMemberSprintListFilter(any(Long.class), any(User.class)))
+                .thenReturn(false);
+    }
 
     private static Project scrumProject(long projectId, long ownerId) {
         User owner = new User();
@@ -486,5 +506,84 @@ class SprintServiceImplTest {
         assertEquals(SPRINT_STATUS.COMPLETED, response.getData().getStatus());
         verify(sprintRepository, never()).save(any());
         verify(issueRepository, never()).findBySprint_Id(any());
+    }
+
+    @Test
+    void listSprints_memberRole_excludesInactiveSprints() {
+        long projectId = 1L;
+        User member = new User();
+        member.setId(2L);
+        Project project = scrumProject(projectId, 10L);
+        project.getTeam().add(member);
+
+        Sprint inactive = new Sprint();
+        inactive.setId(1L);
+        inactive.setStatus(SPRINT_STATUS.INACTIVE);
+        Sprint active = new Sprint();
+        active.setId(2L);
+        active.setStatus(SPRINT_STATUS.ACTIVE);
+        Sprint completed = new Sprint();
+        completed.setId(3L);
+        completed.setStatus(SPRINT_STATUS.COMPLETED);
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(projectAuthorizationService.usesMemberSprintListFilter(projectId, member)).thenReturn(true);
+        when(sprintRepository.findByProject_IdOrderByStartDateDesc(projectId))
+                .thenReturn(List.of(inactive, active, completed));
+        when(sprintMapper.toResponse(active))
+                .thenReturn(
+                        SprintResponse.builder().id(2L).name("A").status(SPRINT_STATUS.ACTIVE).build());
+        when(sprintMapper.toResponse(completed))
+                .thenReturn(
+                        SprintResponse.builder()
+                                .id(3L)
+                                .name("C")
+                                .status(SPRINT_STATUS.COMPLETED)
+                                .build());
+
+        var response = sprintService.listSprints(projectId, member);
+
+        assertEquals(2, response.getData().size());
+        verify(sprintMapper, never()).toResponse(eq(inactive));
+    }
+
+    @Test
+    void createSprint_scrumMaster_whenAuthorized_succeeds() {
+        long projectId = 1L;
+        Project project = scrumProject(projectId, 10L);
+        User scrumMaster = new User();
+        scrumMaster.setId(3L);
+
+        SprintCreateRequest req = new SprintCreateRequest();
+        req.setName("Sprint 1");
+        req.setStartDate(LocalDate.of(2026, 4, 1));
+        req.setEndDate(LocalDate.of(2026, 4, 14));
+
+        when(projectService.getProjectById(projectId))
+                .thenReturn(Response.<Project>builder().data(project).build());
+        when(projectAuthorizationService.canManageSprints(project, scrumMaster)).thenReturn(true);
+        when(sprintRepository.save(any(Sprint.class)))
+                .thenAnswer(
+                        inv -> {
+                            Sprint s = inv.getArgument(0);
+                            s.setId(100L);
+                            return s;
+                        });
+        when(sprintMapper.toResponse(any(Sprint.class)))
+                .thenAnswer(
+                        inv -> {
+                            Sprint s = inv.getArgument(0);
+                            return SprintResponse.builder()
+                                    .id(s.getId())
+                                    .name(s.getName())
+                                    .status(s.getStatus())
+                                    .build();
+                        });
+
+        var response = sprintService.createSprint(projectId, req, scrumMaster);
+
+        assertNotNull(response.getData());
+        assertEquals(SPRINT_STATUS.INACTIVE, response.getData().getStatus());
     }
 }

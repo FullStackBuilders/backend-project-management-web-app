@@ -15,10 +15,11 @@ public interface ProjectService {
     Response<List<Project>> getAllProjectForUser(User user, String category, String tag);
 
     Response<Project> getProjectById(Long projectId) ;
+    Response<Project> getProjectByIdForUser(Long projectId, User user) ;
 
     Response<Void> deleteProject(Long projectId, Long userId);
 
-    Response<Project> updateProject(ProjectRequest projectRequest, Long id);
+    Response<Project> updateProject(ProjectRequest projectRequest, Long id, User currentUser);
 
     Response<Void> addUserToProject( Long userId ,Long projectId) ;
 
