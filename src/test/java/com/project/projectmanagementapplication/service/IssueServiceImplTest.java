@@ -587,4 +587,26 @@ class IssueServiceImplTest {
         assertNull(captor.getValue().getSprint());
         assertEquals(member, captor.getValue().getAssignedBy());
     }
+
+    @Test
+    void deleteIssue_inCompletedSprint_throwsBadRequest() throws Exception {
+        Long issueId = 77L;
+        Sprint sprint = new Sprint();
+        sprint.setId(3L);
+        sprint.setStatus(SPRINT_STATUS.COMPLETED);
+        User owner = new User();
+        owner.setId(1L);
+        Project project = new Project();
+        project.setOwner(owner);
+        Issue issue = new Issue();
+        issue.setId(issueId);
+        issue.setSprint(sprint);
+        issue.setProject(project);
+        issue.setCreatedBy(owner);
+
+        when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
+
+        assertThrows(BadRequestException.class, () -> issueService.deleteIssue(issueId, owner.getId()));
+        verify(issueRepository, never()).deleteById(any());
+    }
 }

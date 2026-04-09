@@ -193,6 +193,7 @@ public class IssueServiceImpl implements IssueService {
     public Response<IssueResponse> assignIssueSprint(Long issueId, IssueSprintAssignmentRequest request, Long userId)
             throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
         if (project.getFramework() != PROJECT_FRAMEWORK.SCRUM) {
@@ -255,6 +256,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<Long> deleteIssue(Long issueId, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
 
         boolean isCreator = issue.getCreatedBy().getId().equals(userId);
         boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
@@ -276,6 +278,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> updateIssue(Long issueId, IssueRequest issueRequest, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
 
         boolean isCreator = issue.getCreatedBy().getId().equals(userId);
         boolean isProjectOwner = issue.getProject().getOwner().getId().equals(userId);
@@ -382,6 +385,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> addUserToIssue(Long issueId, Long assigneeUserId, Long callerId) throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
         boolean isCreator = issue.getCreatedBy().getId().equals(callerId);
@@ -430,6 +434,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> removeAssigneeFromIssue(Long issueId, Long callerId) throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
         boolean isCreator = issue.getCreatedBy().getId().equals(callerId);
@@ -475,6 +480,7 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public Response<IssueResponse> updateIssueStatus(Long issueId, String status, Long userId) throws Exception {
         Issue issue = getIssueById(issueId);
+        assertIssueNotInCompletedSprint(issue);
         Project project = issue.getProject();
 
         boolean canUpdateStatus = false;
@@ -644,5 +650,16 @@ public class IssueServiceImpl implements IssueService {
 
     private void assertUserMayCreateIssueInProject(Project project, User user) {
         assertProjectMember(project, user);
+    }
+
+    /**
+     * Scrum: issues in a {@link SPRINT_STATUS#COMPLETED} sprint are read-only (no field, status,
+     * assignee, sprint moves, or delete).
+     */
+    private void assertIssueNotInCompletedSprint(Issue issue) {
+        Sprint sprint = issue.getSprint();
+        if (sprint != null && sprint.getStatus() == SPRINT_STATUS.COMPLETED) {
+            throw new BadRequestException("Cannot modify tasks in a completed sprint");
+        }
     }
 }

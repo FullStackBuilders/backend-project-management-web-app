@@ -37,6 +37,11 @@ public class IssueResponse {
     /** Null when the issue is in the product backlog (no sprint). */
     private Long sprintId;
     private String sprintName;
+    /**
+     * Sprint lifecycle status when {@link #sprintId} is non-null (e.g. ACTIVE, COMPLETED).
+     * Null for backlog issues.
+     */
+    private String sprintStatus;
 
     private Integer commentCount;
 

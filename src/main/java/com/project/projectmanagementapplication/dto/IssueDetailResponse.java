@@ -29,6 +29,7 @@ public class IssueDetailResponse {
 
     private Long projectId;
     private String projectName;
+    private String projectFramework;
     private Long projectOwnerId;
     private String projectOwnerName;
 
