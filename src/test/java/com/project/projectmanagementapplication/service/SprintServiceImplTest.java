@@ -529,7 +529,7 @@ class SprintServiceImplTest {
         when(projectService.getProjectById(projectId))
                 .thenReturn(Response.<Project>builder().data(project).build());
         when(projectAuthorizationService.usesMemberSprintListFilter(projectId, member)).thenReturn(true);
-        when(sprintRepository.findByProject_IdOrderByStartDateDesc(projectId))
+        when(sprintRepository.findByProject_Id(projectId))
                 .thenReturn(List.of(inactive, active, completed));
         when(sprintMapper.toResponse(active))
                 .thenReturn(

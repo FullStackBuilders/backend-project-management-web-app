@@ -23,12 +23,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
 @Service
 @Transactional
 public class SprintServiceImpl implements SprintService {
+    private static final Comparator<Sprint> SPRINT_LIST_ORDER = (a, b) -> {
+        int byStart = compareNullableDesc(a.getStartDate(), b.getStartDate());
+        if (byStart != 0) return byStart;
+        int byCreated = compareNullableDesc(a.getCreatedAt(), b.getCreatedAt());
+        if (byCreated != 0) return byCreated;
+        return compareNullableDesc(a.getId(), b.getId());
+    };
 
     private final SprintRepository sprintRepository;
     private final IssueRepository issueRepository;
@@ -56,8 +64,9 @@ public class SprintServiceImpl implements SprintService {
         assertScrumProject(project);
         assertProjectMember(project, caller);
 
-        Stream<Sprint> stream =
-                sprintRepository.findByProject_IdOrderByStartDateDesc(projectId).stream();
+        Stream<Sprint> stream = sprintRepository.findByProject_Id(projectId)
+                .stream()
+                .sorted(SPRINT_LIST_ORDER);
         if (projectAuthorizationService.usesMemberSprintListFilter(projectId, caller)) {
             stream = stream.filter(
                     s -> s.getStatus() == SPRINT_STATUS.ACTIVE || s.getStatus() == SPRINT_STATUS.COMPLETED);
@@ -294,5 +303,12 @@ public class SprintServiceImpl implements SprintService {
         if (!inTeam) {
             throw new UnauthorizedException("You are not a member of this project");
         }
+    }
+
+    private static <T extends Comparable<? super T>> int compareNullableDesc(T left, T right) {
+        if (left == null && right == null) return 0;
+        if (left == null) return 1;
+        if (right == null) return -1;
+        return right.compareTo(left);
     }
 }

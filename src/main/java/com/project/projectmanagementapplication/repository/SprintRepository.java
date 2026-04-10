@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface SprintRepository extends JpaRepository<Sprint, Long> {
 
-    List<Sprint> findByProject_IdOrderByStartDateDesc(Long projectId);
+    List<Sprint> findByProject_Id(Long projectId);
 
     Optional<Sprint> findByIdAndProject_Id(Long id, Long projectId);
 }
