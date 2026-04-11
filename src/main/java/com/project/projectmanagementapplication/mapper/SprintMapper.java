@@ -19,6 +19,7 @@ public class SprintMapper {
                 .endDate(sprint.getEndDate())
                 .status(sprint.getStatus())
                 .projectId(sprint.getProject() != null ? sprint.getProject().getId() : null)
+                .createdAt(sprint.getCreatedAt())
                 .build();
     }
 }
