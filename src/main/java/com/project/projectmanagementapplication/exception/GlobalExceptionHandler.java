@@ -114,6 +114,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
+    @ExceptionHandler(InsightGenerationException.class)
+    public ResponseEntity<ErrorResponse> handleInsightGeneration(InsightGenerationException ex, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        log.warn("Insight generation failed at {}: {}", path, ex.getMessage());
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .statusCode(HttpStatus.BAD_GATEWAY.value())
+                .status(HttpStatus.BAD_GATEWAY)
+                .error("Insight Generation Failed")
+                .message("Unable to generate insights right now. Please try again later.")
+                .path(path)
+                .timestamp(LocalDateTime.now().toString())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorResponse);
+    }
+
     @ExceptionHandler(InvitationExpiredException.class)
     public ResponseEntity<ErrorResponse> handleInvitationExpired(InvitationExpiredException ex, WebRequest request) {
         log.warn("Invitation expired at {}: {}", ((ServletWebRequest) request).getRequest().getRequestURI(), ex.getMessage());
