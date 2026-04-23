@@ -1,0 +1,33 @@
+# Activated with @ActiveProfiles("test") on @DataJpaTest / @SpringBootTest.
+# Complements classpath application-test.properties under src/main/resources.
+spring:
+  datasource:
+    # NON_KEYWORDS=USER: entity table "user" is reserved in H2
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+      naming:
+        physical-strategy: com.project.projectmanagementapplication.testsupport.H2UserTablePhysicalNamingStrategy
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+# HS256-friendly secret (32+ bytes)
+jwt:
+  secretKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  header: Authorization
+  expiration: 86400000
+
+gemini:
+  model: test-model
+
+app:
+  frontend:
+    base-url: http://localhost:5173
+  invitation:
+    expiry-hours: 24

@@ -1,6 +1,7 @@
 package com.project.projectmanagementapplication.dto.ai;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.projectmanagementapplication.enums.RecentCompletionActivity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,11 @@ public class AiMetricsContextPayload {
     private TrendsSection trends;
     private DerivedSection derived;
     private HintsSection hints;
+    /**
+     * Board column task limits vs counts for AI grounding (Kanban: project-wide; Scrum: selected sprint only).
+     * Prompt instructions may reference this in a later iteration.
+     */
+    private ColumnLimitsSection columnLimits;
 
     @Data
     @Builder
@@ -35,10 +41,30 @@ public class AiMetricsContextPayload {
         private String framework;
         private long projectId;
         private String projectName;
+        /** Kanban: human-readable time range label (e.g. Last 7 days). Scrum: omitted. */
         private String scopeLabel;
+        /** Kanban: analysis window. Scrum: omitted. */
         private LocalDate scopeStartDate;
+        /** Kanban: analysis window. Scrum: omitted. */
         private LocalDate scopeEndDate;
         private Instant generatedAt;
+
+        /** Scrum: selected sprint id. */
+        private Long sprintId;
+        /** Scrum: display name. */
+        private String sprintName;
+        /** Scrum: optional sprint goal. */
+        private String sprintGoal;
+        /** Scrum: ACTIVE, COMPLETED, etc. */
+        private String sprintStatus;
+        /** Scrum: official sprint start from entity. */
+        private LocalDate sprintStartDate;
+        /** Scrum: official sprint end from entity. */
+        private LocalDate sprintEndDate;
+        /** Scrum: cycle/lead trend chart window start. */
+        private LocalDate trendWindowStartDate;
+        /** Scrum: cycle/lead trend chart window end. */
+        private LocalDate trendWindowEndDate;
     }
 
     @Data
@@ -50,7 +76,10 @@ public class AiMetricsContextPayload {
         private int wip;
         private Double avgCycleTimeDays;
         private Double avgLeadTimeDays;
-        private int throughput;
+        /** Kanban only: completions in selected time range. Scrum: omit (null). */
+        private Integer throughput;
+        /** Scrum only: DONE task count in selected sprint. Kanban: omit (null). */
+        private Integer velocity;
     }
 
     @Data
@@ -95,5 +124,33 @@ public class AiMetricsContextPayload {
          */
         private boolean enoughTrendData;
         private List<String> notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(NON_NULL)
+    public static class ColumnLimitsSection {
+        /** True if at least one column has a non-null max task limit configured. */
+        private boolean maximumTaskLimitConfigured;
+        private List<ColumnLimitRow> columns;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(NON_NULL)
+    public static class ColumnLimitRow {
+        private String statusKey;
+        private String displayName;
+        private int taskCount;
+        /** Present only when {@link #maxTaskLimitConfigured} is true. */
+        private Integer maxTasksAllowed;
+        private boolean maxTaskLimitConfigured;
+        /** Serialized as {@code isExceeded} for the model payload. */
+        @JsonProperty("isExceeded")
+        private boolean exceeded;
     }
 }

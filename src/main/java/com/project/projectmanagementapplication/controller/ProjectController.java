@@ -4,6 +4,8 @@ package com.project.projectmanagementapplication.controller;
 import com.project.projectmanagementapplication.dto.ProjectMembershipMeResponse;
 import com.project.projectmanagementapplication.dto.ProjectRequest;
 import com.project.projectmanagementapplication.dto.Response;
+import com.project.projectmanagementapplication.dto.BoardColumnLimitResponse;
+import com.project.projectmanagementapplication.dto.UpdateBoardColumnLimitRequest;
 import com.project.projectmanagementapplication.dto.UpdateProjectMemberRoleRequest;
 import com.project.projectmanagementapplication.exception.BadRequestException;
 import com.project.projectmanagementapplication.model.Chat;
@@ -14,6 +16,7 @@ import com.project.projectmanagementapplication.service.InvitationService;
 import com.project.projectmanagementapplication.service.ProjectMembershipService;
 import com.project.projectmanagementapplication.service.ProjectService;
 import com.project.projectmanagementapplication.service.UserService;
+import com.project.projectmanagementapplication.service.BoardColumnLimitService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -29,6 +32,7 @@ public class ProjectController {
     private final ChatService chatService;
     private final UserService userService;
     private final InvitationService invitationService;
+    private final BoardColumnLimitService boardColumnLimitService;
 
     private final ProjectMembershipService projectMembershipService;
 
@@ -38,12 +42,14 @@ public class ProjectController {
             ChatService chatService,
             UserService userService,
             InvitationService invitationService,
-            ProjectMembershipService projectMembershipService) {
+            ProjectMembershipService projectMembershipService,
+            BoardColumnLimitService boardColumnLimitService) {
         this.projectService = projectService;
         this.chatService = chatService;
         this.userService = userService;
         this.invitationService = invitationService;
         this.projectMembershipService = projectMembershipService;
+        this.boardColumnLimitService = boardColumnLimitService;
     }
 
      @GetMapping
@@ -124,6 +130,32 @@ public class ProjectController {
         User user = userService.findByUsername(username);
         Response<Void> response = projectService.deleteProject(projectId, user.getId());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{projectId}/board-columns/limits")
+    public ResponseEntity<List<BoardColumnLimitResponse>> getBoardColumnLimits(@PathVariable Long projectId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userService.findByUsername(authentication.getName());
+        return ResponseEntity.ok(boardColumnLimitService.getColumnLimits(projectId, user));
+    }
+
+    @PutMapping("/{projectId}/board-columns/{status}/limit")
+    public ResponseEntity<BoardColumnLimitResponse> updateBoardColumnLimit(
+            @PathVariable Long projectId,
+            @PathVariable String status,
+            @RequestBody(required = false) UpdateBoardColumnLimitRequest body) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userService.findByUsername(authentication.getName());
+        return ResponseEntity.ok(boardColumnLimitService.updateColumnLimit(projectId, status, body, user));
+    }
+
+    @DeleteMapping("/{projectId}/board-columns/{status}/limit")
+    public ResponseEntity<BoardColumnLimitResponse> clearBoardColumnLimit(
+            @PathVariable Long projectId,
+            @PathVariable String status) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userService.findByUsername(authentication.getName());
+        return ResponseEntity.ok(boardColumnLimitService.clearColumnLimit(projectId, status, user));
     }
 
     @GetMapping("/search")

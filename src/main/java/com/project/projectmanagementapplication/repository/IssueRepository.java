@@ -19,6 +19,8 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
 
     List<Issue> findByProjectId(Long projectId);
 
+    long countByProjectIdAndStatus(Long projectId, ISSUE_STATUS status);
+
     List<Issue> findByProjectIdAndSprintIsNull(Long projectId);
 
     long countByAssigneeAndProjectIn(User assignee, List<Project> projects);

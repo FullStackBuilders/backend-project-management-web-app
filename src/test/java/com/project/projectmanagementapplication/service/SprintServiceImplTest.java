@@ -272,11 +272,6 @@ class SprintServiceImplTest {
         User notOwner = new User();
         notOwner.setId(2L);
 
-        Sprint sprint = new Sprint();
-        sprint.setId(sprintId);
-        sprint.setStatus(SPRINT_STATUS.INACTIVE);
-        sprint.setProject(project);
-
         SprintCreateRequest req = new SprintCreateRequest();
         req.setName("X");
         req.setStartDate(LocalDate.of(2026, 4, 1));
@@ -284,7 +279,6 @@ class SprintServiceImplTest {
 
         when(projectService.getProjectById(projectId))
                 .thenReturn(Response.<Project>builder().data(project).build());
-        when(sprintRepository.findByIdAndProject_Id(sprintId, projectId)).thenReturn(Optional.of(sprint));
 
         assertThrows(UnauthorizedException.class, () -> sprintService.updateSprint(projectId, sprintId, req, notOwner));
         verify(sprintRepository, never()).save(any());

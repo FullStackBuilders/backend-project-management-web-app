@@ -3,6 +3,7 @@ package com.project.projectmanagementapplication.service;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.ContextSection;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.DerivedSection;
+import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.ColumnLimitsSection;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.HintsSection;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.PrimarySection;
 import com.project.projectmanagementapplication.dto.ai.AiMetricsContextPayload.TrendsSection;
@@ -21,6 +22,7 @@ import com.project.projectmanagementapplication.model.Issue;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.Sprint;
 import com.project.projectmanagementapplication.model.User;
+import com.project.projectmanagementapplication.repository.BoardColumnSettingRepository;
 import com.project.projectmanagementapplication.repository.IssueRepository;
 import com.project.projectmanagementapplication.repository.SprintRepository;
 import com.project.projectmanagementapplication.service.metrics.KanbanMetricsWindow;
@@ -51,14 +53,17 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
     private final ProjectService projectService;
     private final IssueRepository issueRepository;
     private final SprintRepository sprintRepository;
+    private final BoardColumnSettingRepository boardColumnSettingRepository;
 
     public AiMetricsContextServiceImpl(
             ProjectService projectService,
             IssueRepository issueRepository,
-            SprintRepository sprintRepository) {
+            SprintRepository sprintRepository,
+            BoardColumnSettingRepository boardColumnSettingRepository) {
         this.projectService = projectService;
         this.issueRepository = issueRepository;
         this.sprintRepository = sprintRepository;
+        this.boardColumnSettingRepository = boardColumnSettingRepository;
     }
 
     @Override
@@ -131,6 +136,8 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
                 .notes(notes)
                 .build();
 
+        ColumnLimitsSection columnLimits = buildColumnLimitsForProject(project.getId(), issues);
+
         return AiMetricsContextPayload.builder()
                 .context(ContextSection.builder()
                         .framework(PROJECT_FRAMEWORK.KANBAN.name())
@@ -154,6 +161,7 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
                         .build())
                 .derived(derived)
                 .hints(hints)
+                .columnLimits(columnLimits)
                 .build();
     }
 
@@ -191,19 +199,7 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
                 .toList();
 
         List<VelocityBySprintRow> velocityRows = velocitySprints.stream()
-                .map(s -> {
-                    long sid = s.getId();
-                    int cnt = (int) issues.stream()
-                            .filter(i -> i.getStatus() == ISSUE_STATUS.DONE)
-                            .filter(i -> i.getSprint() != null && Objects.equals(i.getSprint().getId(), sid))
-                            .count();
-                    return VelocityBySprintRow.builder()
-                            .sprintId(sid)
-                            .sprintName(Optional.ofNullable(s.getName()).orElse("Sprint " + sid))
-                            .completedTasks(cnt)
-                            .sprintStatus(s.getStatus())
-                            .build();
-                })
+                .map(s -> buildVelocityBySprintRow(issues, s, sprintId))
                 .toList();
 
         DailyActivitySummary dailyActivity = summarizeDailyCompletions(cycleLeadByDay);
@@ -222,23 +218,33 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
                 .notes(notes)
                 .build();
 
-        String sprintLabel = Optional.ofNullable(sprint.getName()).orElse("Sprint " + sprint.getId());
+        ColumnLimitsSection columnLimits = buildColumnLimitsForProject(project.getId(), inSprint);
+
+        String sprintGoal = Optional.ofNullable(sprint.getGoal()).map(String::trim).filter(g -> !g.isEmpty()).orElse(null);
 
         return AiMetricsContextPayload.builder()
                 .context(ContextSection.builder()
                         .framework(PROJECT_FRAMEWORK.SCRUM.name())
                         .projectId(project.getId())
                         .projectName(project.getName())
-                        .scopeLabel(sprintLabel)
-                        .scopeStartDate(bounds.start())
-                        .scopeEndDate(bounds.end())
+                        .scopeLabel(null)
+                        .scopeStartDate(null)
+                        .scopeEndDate(null)
                         .generatedAt(java.time.Instant.now())
+                        .sprintId(sprint.getId())
+                        .sprintName(Optional.ofNullable(sprint.getName()).orElse("Sprint " + sprint.getId()))
+                        .sprintGoal(sprintGoal)
+                        .sprintStatus(sprint.getStatus().name())
+                        .sprintStartDate(sprint.getStartDate())
+                        .sprintEndDate(sprint.getEndDate())
+                        .trendWindowStartDate(bounds.start())
+                        .trendWindowEndDate(bounds.end())
                         .build())
                 .primary(PrimarySection.builder()
                         .wip(wip)
                         .avgCycleTimeDays(avgCycle)
                         .avgLeadTimeDays(avgLead)
-                        .throughput(velocity)
+                        .velocity(velocity)
                         .build())
                 .trends(TrendsSection.builder()
                         .cycleLeadByDay(cycleLeadByDay)
@@ -247,7 +253,19 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
                         .build())
                 .derived(derived)
                 .hints(hints)
+                .columnLimits(columnLimits)
                 .build();
+    }
+
+    /**
+     * Column limits are project-wide configuration; task counts are from {@code issuesForCounts} (Kanban: all project
+     * issues; Scrum: issues in the selected sprint only).
+     */
+    private ColumnLimitsSection buildColumnLimitsForProject(Long projectId, List<Issue> issuesForCounts) {
+        Map<ISSUE_STATUS, Integer> counts = ColumnLimitsMetricsAssembler.countIssuesByStandardStatuses(issuesForCounts);
+        Map<ISSUE_STATUS, Integer> limits =
+                ColumnLimitsMetricsAssembler.wipLimitsFromSettings(boardColumnSettingRepository.findByProject_Id(projectId));
+        return ColumnLimitsMetricsAssembler.buildSection(counts, limits);
     }
 
     private record SprintBounds(LocalDate start, LocalDate end) {}
@@ -477,6 +495,24 @@ public class AiMetricsContextServiceImpl implements AiMetricsContextService {
         return new ArrayList<>(List.of(
                 "Cycle time uses taskStartedAt to taskCompletedAt; tasks without taskStartedAt are excluded from cycle averages.",
                 "Lead time uses Issue.createdAt (audit creation) to taskCompletedAt; tasks missing createdAt are excluded from lead averages."));
+    }
+
+    private static VelocityBySprintRow buildVelocityBySprintRow(List<Issue> allIssues, Sprint s, Long selectedSprintId) {
+        long sid = s.getId();
+        List<Issue> inSprint = allIssues.stream()
+                .filter(i -> i.getSprint() != null && Objects.equals(i.getSprint().getId(), sid))
+                .toList();
+        int total = inSprint.size();
+        int done = (int) inSprint.stream().filter(i -> i.getStatus() == ISSUE_STATUS.DONE).count();
+        Double completionRate = total > 0 ? done / (double) total : null;
+        return VelocityBySprintRow.builder()
+                .sprintId(sid)
+                .sprintName(Optional.ofNullable(s.getName()).orElse("Sprint " + sid))
+                .completedTasks(done)
+                .sprintStatus(s.getStatus())
+                .completionRate(completionRate)
+                .selectedSprint(Objects.equals(s.getId(), selectedSprintId))
+                .build();
     }
 
     private static void assertProjectMember(Project project, User user) {
