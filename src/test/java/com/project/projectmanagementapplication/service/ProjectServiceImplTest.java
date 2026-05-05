@@ -42,6 +42,9 @@ class ProjectServiceImplTest {
     @Mock
     private ProjectAuthorizationService projectAuthorizationService;
 
+    @Mock
+    private EmailService emailService;
+
     @Test
     void createProject_frameworkNull_defaultsToKanban() {
         User owner = new User();

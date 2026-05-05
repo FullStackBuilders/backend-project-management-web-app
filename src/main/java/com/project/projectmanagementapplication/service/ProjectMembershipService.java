@@ -124,13 +124,59 @@ public class ProjectMembershipService {
     }
 
     /**
-     * Update another member's role. Caller must be OWNER or ADMIN (validated elsewhere).
+     * Returns all membership rows for a project, backfilling any legacy members
+     * (users on project.team or owner) who do not yet have a membership row.
+     */
+    public List<ProjectMembership> getProjectMembersWithRoles(Project project) {
+        backfillProject(project);
+        return membershipRepository.findByProject_Id(project.getId());
+    }
+
+    /**
+     * Ensures every member of the given project (owner + team) has a membership row.
+     * Safe to call repeatedly — skips rows that already exist.
+     */
+    private void backfillProject(Project project) {
+        Long pid = project.getId();
+        User owner = project.getOwner();
+        if (owner != null
+                && membershipRepository.findByProject_IdAndUser_Id(pid, owner.getId()).isEmpty()) {
+            createOwnerMembership(project, owner);
+        }
+        if (project.getTeam() != null) {
+            for (User u : project.getTeam()) {
+                if (owner != null && u.getId().equals(owner.getId())) {
+                    continue;
+                }
+                if (membershipRepository.findByProject_IdAndUser_Id(pid, u.getId()).isEmpty()) {
+                    createMemberMembership(project, u);
+                }
+            }
+        }
+    }
+
+    /**
+     * Update another member's role. Only OWNER or ADMIN may call this.
+     * Guards (in order):
+     *   1. newRole must not be OWNER — ownership transfers are not supported via this endpoint.
+     *   2. Caller cannot change their own role — prevents accidental self-lockout.
+     *   3. Target must not be the project owner — owner's role is immutable.
+     *   4. SCRUM_MASTER is only valid on Scrum-framework projects.
+     *   5. Only one SCRUM_MASTER allowed per project.
      */
     public PROJECT_MEMBER_ROLE updateMemberRole(
             Project project, User caller, Long targetUserId, PROJECT_MEMBER_ROLE newRole) {
         Objects.requireNonNull(newRole);
+
+        if (newRole == PROJECT_MEMBER_ROLE.OWNER) {
+            throw new BadRequestException("Cannot assign the Owner role via this operation");
+        }
+
+        if (caller.getId().equals(targetUserId)) {
+            throw new BadRequestException("You cannot change your own role");
+        }
+
         userService.findByUserId(targetUserId);
-        getRole(project.getId(), targetUserId);
         PROJECT_MEMBER_ROLE callerRole = getRole(project.getId(), caller.getId());
 
         if (callerRole != PROJECT_MEMBER_ROLE.OWNER && callerRole != PROJECT_MEMBER_ROLE.ADMIN) {
@@ -138,17 +184,7 @@ public class ProjectMembershipService {
         }
 
         if (targetUserId.equals(project.getOwner().getId())) {
-            if (newRole != PROJECT_MEMBER_ROLE.OWNER) {
-                throw new BadRequestException("Cannot change the project owner's role");
-            }
-            return PROJECT_MEMBER_ROLE.OWNER;
-        }
-
-        if (callerRole == PROJECT_MEMBER_ROLE.ADMIN) {
-            PROJECT_MEMBER_ROLE targetCurrent = getRole(project.getId(), targetUserId);
-            if (targetCurrent == PROJECT_MEMBER_ROLE.OWNER) {
-                throw new UnauthorizedException("Admins cannot modify the project owner");
-            }
+            throw new BadRequestException("Cannot change the project owner's role");
         }
 
         if (newRole == PROJECT_MEMBER_ROLE.SCRUM_MASTER) {
@@ -169,6 +205,15 @@ public class ProjectMembershipService {
         m.setRole(newRole);
         membershipRepository.save(m);
         return newRole;
+    }
+
+    /**
+     * Returns the user ID of the current Scrum Master for the project, or null if none is assigned.
+     */
+    public Long getScrumMasterId(Long projectId) {
+        return membershipRepository
+                .findUserIdByProjectIdAndRole(projectId, PROJECT_MEMBER_ROLE.SCRUM_MASTER)
+                .orElse(null);
     }
 
     private void assertNoConflictingScrumMaster(Project project, Long targetUserId) {

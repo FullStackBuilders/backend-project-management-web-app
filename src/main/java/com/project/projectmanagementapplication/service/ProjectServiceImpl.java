@@ -13,6 +13,7 @@ import com.project.projectmanagementapplication.model.Chat;
 import com.project.projectmanagementapplication.model.Project;
 import com.project.projectmanagementapplication.model.User;
 import com.project.projectmanagementapplication.repository.ProjectRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectRepository projectRepository;
@@ -30,6 +32,7 @@ public class ProjectServiceImpl implements ProjectService {
     private final ChatService chatService;
     private final ProjectMembershipService projectMembershipService;
     private final ProjectAuthorizationService projectAuthorizationService;
+    private final EmailService emailService;
 
     @Autowired
     public ProjectServiceImpl(
@@ -37,12 +40,14 @@ public class ProjectServiceImpl implements ProjectService {
             UserService userService,
             @Lazy ChatService chatService,
             ProjectMembershipService projectMembershipService,
-            ProjectAuthorizationService projectAuthorizationService) {
+            ProjectAuthorizationService projectAuthorizationService,
+            EmailService emailService) {
         this.projectRepository = projectRepository;
         this.userService = userService;
         this.chatService = chatService;
         this.projectMembershipService = projectMembershipService;
         this.projectAuthorizationService = projectAuthorizationService;
+        this.emailService = emailService;
     }
 
 
@@ -202,24 +207,48 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public Response<Void> removeUserFromProject(Long userId, Long projectId)  {
-        Project project  = getProjectById(projectId).getData();
-        User user = userService.findByUserId(userId);
-        if(!(project.getTeam().contains(user))) {
+    public Response<Void> removeUserFromProject(Long targetUserId, Long projectId, User caller) {
+        Project project = getProjectById(projectId).getData();
+
+        if (targetUserId.equals(project.getOwner().getId())) {
+            throw new BadRequestException("Cannot remove the project owner");
+        }
+
+        if (targetUserId.equals(caller.getId())) {
+            throw new BadRequestException("You cannot remove yourself from the project");
+        }
+
+        PROJECT_MEMBER_ROLE callerRole = projectMembershipService.getRole(projectId, caller.getId());
+        if (callerRole != PROJECT_MEMBER_ROLE.OWNER && callerRole != PROJECT_MEMBER_ROLE.ADMIN) {
+            throw new UnauthorizedException("Only project owners and admins can remove team members");
+        }
+
+        User user = userService.findByUserId(targetUserId);
+        if (!project.getTeam().contains(user)) {
             throw new ConflictException("User does not exist in the project");
         }
+
         project.getChat().getUsers().remove(user);
         project.getTeam().remove(user);
         projectRepository.save(project);
-        projectMembershipService.removeMembership(projectId, userId);
+        projectMembershipService.removeMembership(projectId, targetUserId);
         userService.updateUserProjectSize(user, -1);
+
+        String callerName = caller.getFirstName() + " " + caller.getLastName();
+        try {
+            if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                emailService.sendRemovalNotification(user.getEmail(), project.getName(), callerName);
+            }
+        } catch (Exception e) {
+            log.warn("Removal notification could not be sent to {}: {}", user.getEmail(), e.getMessage());
+        }
+
         return Response.<Void>builder()
                 .message("User removed from project successfully")
                 .status(HttpStatus.OK)
                 .statusCode(HttpStatus.OK.value())
                 .timestamp(LocalDateTime.now().toString())
                 .build();
-
     }
 
 
@@ -257,6 +286,9 @@ public class ProjectServiceImpl implements ProjectService {
         project.setCanDeleteProject(canManageProject);
         project.setCanInviteMembers(canInvite);
         project.setCanManageAllTasks(canManageTasks);
+        if (project.getFramework() == com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK.SCRUM) {
+            project.setScrumMasterId(projectMembershipService.getScrumMasterId(project.getId()));
+        }
         return project;
     }
  }

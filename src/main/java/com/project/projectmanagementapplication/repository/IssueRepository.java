@@ -52,4 +52,7 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
             ISSUE_STATUS status
     );
 
+    List<Issue> findByProject_IdAndAssignee_IdAndStatusNot(
+            Long projectId, Long assigneeId, ISSUE_STATUS excludedStatus);
+
 }

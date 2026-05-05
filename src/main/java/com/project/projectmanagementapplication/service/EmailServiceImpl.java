@@ -45,6 +45,26 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    public void sendRemovalNotification(String userEmail, String projectName, String removedByName)
+            throws MessagingException {
+        MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+
+        helper.setFrom(fromEmail);
+        helper.setTo(userEmail);
+        helper.setSubject("Project Team Update");
+        helper.setText(buildRemovalEmailTemplate(projectName, removedByName), true);
+
+        try {
+            javaMailSender.send(mimeMessage);
+            log.info("Removal notification sent to: {}", userEmail);
+        } catch (Exception e) {
+            log.error("Failed to send removal notification to: {}", userEmail, e);
+            throw new MessagingException("Failed to send removal notification to " + userEmail, e);
+        }
+    }
+
     private String buildEmailTemplate(String invitationLink) {
         return """
             <html>
@@ -70,12 +90,32 @@ public class EmailServiceImpl implements EmailService {
                     
                     <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
                     <p style="font-size: 12px; color: #666; text-align: center;">
-                        This invitation was sent from our Project Management System. 
+                        This invitation was sent from TeamBoard.
                         If you didn't expect this invitation, please ignore this email.
                     </p>
                 </div>
             </body>
             </html>
             """.formatted(invitationLink, invitationLink, invitationLink);
+    }
+
+    private String buildRemovalEmailTemplate(String projectName, String removedByName) {
+        return """
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #2c3e50; text-align: center;">Project Team Update</h2>
+                    <p>Hello,</p>
+                    <p>This is to let you know that you have been removed from the project <strong>%s</strong> by <strong>%s</strong>.</p>
+                    <p>You no longer have access to this project.</p>
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+                    <p style="font-size: 12px; color: #666; text-align: center;">
+                        This notification was sent from TeamBoard.
+                        If you have any questions, please contact your project administrator.
+                    </p>
+                </div>
+            </body>
+            </html>
+            """.formatted(projectName, removedByName);
     }
 }

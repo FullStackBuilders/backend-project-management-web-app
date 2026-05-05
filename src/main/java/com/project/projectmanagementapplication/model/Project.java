@@ -2,6 +2,7 @@ package com.project.projectmanagementapplication.model;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.project.projectmanagementapplication.enums.PROJECT_FRAMEWORK;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Data
 public class Project extends AuditableEntity {
@@ -64,4 +66,7 @@ public class Project extends AuditableEntity {
 
     @Transient
     private Boolean canManageAllTasks;
+
+    @Transient
+    private Long scrumMasterId;
 }

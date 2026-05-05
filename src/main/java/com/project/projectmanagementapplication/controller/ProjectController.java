@@ -2,6 +2,7 @@ package com.project.projectmanagementapplication.controller;
 
 
 import com.project.projectmanagementapplication.dto.ProjectMembershipMeResponse;
+import com.project.projectmanagementapplication.dto.ProjectMemberWithRoleResponse;
 import com.project.projectmanagementapplication.dto.ProjectRequest;
 import com.project.projectmanagementapplication.dto.Response;
 import com.project.projectmanagementapplication.dto.BoardColumnLimitResponse;
@@ -106,6 +107,26 @@ public class ProjectController {
                 ProjectMembershipMeResponse.builder().role(role.name()).build());
     }
 
+    @GetMapping("/{projectId}/members")
+    public ResponseEntity<List<ProjectMemberWithRoleResponse>> getProjectMembers(
+            @PathVariable Long projectId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User caller = userService.findByUsername(authentication.getName());
+        Project project = projectService.getProjectById(projectId).getData();
+        projectMembershipService.getRole(projectId, caller.getId());
+        List<ProjectMemberWithRoleResponse> members =
+                projectMembershipService.getProjectMembersWithRoles(project).stream()
+                        .map(m -> ProjectMemberWithRoleResponse.builder()
+                                .userId(m.getUser().getId())
+                                .firstName(m.getUser().getFirstName())
+                                .lastName(m.getUser().getLastName())
+                                .email(m.getUser().getEmail())
+                                .role(m.getRole().name())
+                                .build())
+                        .toList();
+        return ResponseEntity.ok(members);
+    }
+
     @PatchMapping("/{projectId}/members/m/{memberUserId}/role")
     public ResponseEntity<ProjectMembershipMeResponse> updateProjectMemberRole(
             @PathVariable Long projectId,
@@ -120,6 +141,16 @@ public class ProjectController {
         var updated =
                 projectMembershipService.updateMemberRole(project, caller, memberUserId, body.getRole());
         return ResponseEntity.ok(ProjectMembershipMeResponse.builder().role(updated.name()).build());
+    }
+
+    @DeleteMapping("/{projectId}/members/m/{memberUserId}")
+    public ResponseEntity<Response<Void>> removeProjectMember(
+            @PathVariable Long projectId,
+            @PathVariable Long memberUserId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User caller = userService.findByUsername(authentication.getName());
+        Response<Void> response = projectService.removeUserFromProject(memberUserId, projectId, caller);
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{projectId}")

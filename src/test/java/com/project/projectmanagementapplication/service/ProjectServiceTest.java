@@ -32,6 +32,15 @@ public class ProjectServiceTest {
     @Mock
     private ChatService chatService;
 
+    @Mock
+    private ProjectMembershipService projectMembershipService;
+
+    @Mock
+    private ProjectAuthorizationService projectAuthorizationService;
+
+    @Mock
+    private EmailService emailService;
+
     @Test
     void testGetProjectById_Success() {
         // Arrange

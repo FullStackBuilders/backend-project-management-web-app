@@ -23,7 +23,7 @@ public interface ProjectService {
 
     Response<Void> addUserToProject( Long userId ,Long projectId) ;
 
-    Response<Void> removeUserFromProject(Long userId, Long projectId) ;
+    Response<Void> removeUserFromProject(Long targetUserId, Long projectId, User caller);
 
     Response<List<Project>> searchProjects(String keyword, User user) ;
 }

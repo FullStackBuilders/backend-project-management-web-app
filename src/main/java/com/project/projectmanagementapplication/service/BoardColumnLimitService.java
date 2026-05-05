@@ -72,7 +72,7 @@ public class BoardColumnLimitService {
             Long projectId, String statusRaw, UpdateBoardColumnLimitRequest body, User caller) {
         if (!projectAuthorizationService.canManageProjectSettings(projectId, caller)) {
             throw new UnauthorizedException(
-                    "Only project owners and admins can update board WIP limits");
+                    "Only project owners and admins can update the Maximum Task Limit.");
         }
 
         Project project = projectService.getProjectById(projectId).getData();
