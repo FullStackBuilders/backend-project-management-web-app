@@ -2,6 +2,7 @@ package com.project.projectmanagementapplication.service;
 
 import com.project.projectmanagementapplication.dto.LoginRequest;
 import com.project.projectmanagementapplication.dto.Response;
+import com.project.projectmanagementapplication.exception.ConflictException;
 import com.project.projectmanagementapplication.model.User;
 import com.project.projectmanagementapplication.repository.UserRepository;
 import com.project.projectmanagementapplication.security.JwtUtil;
@@ -45,7 +46,7 @@ public class AuthServiceImpl implements AuthService {
         Optional<User> isUserExists = userRepository.findByEmail(userRegistrationRequest.getEmail());
 
         if (isUserExists.isPresent()) {
-            throw new RuntimeException("User already exists with this email");
+            throw new ConflictException("An account with this email already exists.");
         }
 
         User createdUser = new User();
